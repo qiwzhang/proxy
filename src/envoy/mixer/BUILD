@@ -34,12 +34,13 @@ cc_proto_library(
     visibility = ["//visibility:public"],
 )
 
-cc_library(
+envoy_cc_library(
     name = "quota_config_lib",
     srcs = [
         "quota_config.cc",
         "quota_config.h",
     ],
+    repository = "@envoy",
     deps = [
         "//external:mixer_client_lib",
 	"@mixerapi_git//:proxy_config_cc_proto",

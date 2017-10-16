@@ -33,7 +33,7 @@ class QuotaConfig {
 
   struct Quota {
     std::string quota;
-    uint64_t amount;
+    int64_t amount;
   };
   // Generate required quotas for a request attributes.
   std::vector<Quota> Check(
