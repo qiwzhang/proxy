@@ -16,15 +16,15 @@
 #include "src/envoy/mixer/quota_config.h"
 
 using ::istio::mixer_client::Attributes;
-using ::istio::proxy::v1::config::MatchClause;
+using ::istio::mixer::v1::AttrbiuteMatch;
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 namespace {
 
-bool MatchClause(const MatchClause& clause, const Attributes& attributes) {
-  for (const auto& map_it : clause.clause()) {
+bool Match(const AttributeMatch& match, const Attributes& attributes) {
+  for (const auto& map_it : match.clause()) {
     // map is attribute_name to StringMatch.
     const std::string& attr_name = map_it.first;
     const auto& match = map_it.second;
@@ -69,16 +69,12 @@ std::vector<QuotaConfig::Quota> QuotaConfig::Check(
     const Attributes& attributes) const {
   std::vector<Quota> results;
   for (const auto& rule : config_pb_.rules()) {
-    bool matched = false;
-    for (const auto& clause : rule.match()) {
-      if (MatchClause(clause, attributes)) {
-        matched = true;
+    for (const auto& match : rule.match()) {
+      if (Match(match, attributes)) {
+	for (const auto& quota : rule.quotas()) {
+	  results.push_back({quota.quota(), quota.charge()});
+	}
         break;
-      }
-    }
-    if (matched) {
-      for (const auto& quota : rule.quotas()) {
-        results.push_back({quota.quota(), quota.amount()});
       }
     }
   }
