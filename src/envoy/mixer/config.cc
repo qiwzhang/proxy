@@ -32,7 +32,6 @@ const std::string kForwardAttributes("forward_attributes");
 // The Json object name for quota name and amount.
 const std::string kQuotaName("quota_name");
 const std::string kQuotaAmount("quota_amount");
-const std::string kQuotaConfig("quota_config");
 
 // The Json object name to disable check cache, quota cache and report batch
 const std::string kDisableCheckCache("disable_check_cache");
@@ -68,7 +67,6 @@ void MixerConfig::Load(const Json::Object& json) {
 
   ReadString(json, kQuotaName, &quota_name);
   ReadString(json, kQuotaAmount, &quota_amount);
-  ReadString(json, kQuotaConfig, &quota_config);
 
   ReadString(json, kNetworkFailPolicy, &network_fail_policy);
 

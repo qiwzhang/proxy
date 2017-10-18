@@ -16,36 +16,38 @@
 #include "src/envoy/mixer/quota_config.h"
 
 using ::istio::mixer_client::Attributes;
-using ::istio::mixer::v1::AttrbiuteMatch;
+using ::istio::mixer::v1::config::AttributeMatch;
+using ::istio::mixer::v1::config::QuotaSpec;
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 namespace {
 
-bool Match(const AttributeMatch& match, const Attributes& attributes) {
+bool MatchAttributes(const AttributeMatch& match,
+                     const Attributes& attributes) {
   for (const auto& map_it : match.clause()) {
     // map is attribute_name to StringMatch.
-    const std::string& attr_name = map_it.first;
+    const std::string& name = map_it.first;
     const auto& match = map_it.second;
 
     // Check if required attribure exists with string type.
-    const auto& attr_it = attributes.attributes.find(attr_name);
-    if (attr_it == attributes.attributes.end() ||
-        attr_it->second.type != Attributes::Value::STRING) {
+    const auto& it = attributes.attributes.find(name);
+    if (it == attributes.attributes.end() ||
+        it->second.type != Attributes::Value::STRING) {
       return false;
     }
-    const std::string& attr_value = attr_it->second.str_v;
+    const std::string& value = it->second.str_v;
 
     switch (match.match_type_case()) {
       case ::istio::proxy::v1::config::StringMatch::kExact:
-        if (attr_value != match.exact()) {
+        if (value != match.exact()) {
           return false;
         }
         break;
       case ::istio::proxy::v1::config::StringMatch::kPrefix:
-        if (attr_value.length() < match.prefix().length() ||
-            attr_value.compare(0, match.prefix().length(), match.prefix()) != 0) {
+        if (value.length() < match.prefix().length() ||
+            value.compare(0, match.prefix().length(), match.prefix()) != 0) {
           return false;
         }
         break;
@@ -62,18 +64,17 @@ bool Match(const AttributeMatch& match, const Attributes& attributes) {
 
 }  // namespace
 
-QuotaConfig::QuotaConfig(const ::istio::proxy::v1::config::QuotaConfig& config_pb)
-    : config_pb_(config_pb) {}
+QuotaConfig::QuotaConfig(const QuotaSpec& spec_pb) : spec_pb_(spec_pb) {}
 
 std::vector<QuotaConfig::Quota> QuotaConfig::Check(
     const Attributes& attributes) const {
   std::vector<Quota> results;
-  for (const auto& rule : config_pb_.rules()) {
+  for (const auto& rule : spec_pb_.rules()) {
     for (const auto& match : rule.match()) {
-      if (Match(match, attributes)) {
-	for (const auto& quota : rule.quotas()) {
-	  results.push_back({quota.quota(), quota.charge()});
-	}
+      if (MatchAttributes(match, attributes)) {
+        for (const auto& quota : rule.quotas()) {
+          results.push_back({quota.quota(), quota.charge()});
+        }
         break;
       }
     }

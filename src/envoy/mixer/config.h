@@ -38,7 +38,6 @@ struct MixerConfig {
   // Quota attributes.
   std::string quota_name;
   std::string quota_amount;
-  std::string quota_config;
 
   // boo flags to disable check cache, quota cache, and report batch.
   bool disable_check_cache;

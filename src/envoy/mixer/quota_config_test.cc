@@ -13,36 +13,18 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <string>
-#include <vector>
-
-#include "include/attribute.h"
-#include "mixer/v1/config/client/quota.pb.h"
+#include "quota_config.h"
+#include "gtest/gtest.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-// An object uses quota config to check a request
-// attributes to generate required quotas.
-class QuotaConfig {
+class QuotaConfigTest : public ::testing::Test {
  public:
-  QuotaConfig(const ::istio::mixer::v1::config::QuotaSpec& spec_pb);
-
-  struct Quota {
-    std::string quota;
-    int64_t charge;
-  };
-  // Generate required quotas for a request attributes.
-  std::vector<Quota> Check(
-      const ::istio::mixer_client::Attributes& attributes) const;
-
- private:
-  // The quota spec proto
-  const ::istio::mixer::v1::config::QuotaSpec& spec_pb_;
 };
+
+TEST_F(QuotaConfigTest, TestBasic) {}
 
 }  // namespace Mixer
 }  // namespace Http
