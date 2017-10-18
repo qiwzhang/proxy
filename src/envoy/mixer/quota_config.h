@@ -34,6 +34,11 @@ class QuotaConfig {
   struct Quota {
     std::string quota;
     int64_t charge;
+
+    // For unit-test.
+    bool operator==(const Quota& v) const {
+      return quota == v.quota && charge == v.charge;
+    }
   };
   // Generate required quotas for a request attributes.
   std::vector<Quota> Check(

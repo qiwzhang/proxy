@@ -70,12 +70,17 @@ std::vector<QuotaConfig::Quota> QuotaConfig::Check(
     const Attributes& attributes) const {
   std::vector<Quota> results;
   for (const auto& rule : spec_pb_.rules()) {
+    bool matched = false;
     for (const auto& match : rule.match()) {
       if (MatchAttributes(match, attributes)) {
-        for (const auto& quota : rule.quotas()) {
-          results.push_back({quota.quota(), quota.charge()});
-        }
+        matched = true;
         break;
+      }
+    }
+    // If not match, applies to all requests.
+    if (matched || rule.match_size() == 0) {
+      for (const auto& quota : rule.quotas()) {
+        results.push_back({quota.quota(), quota.charge()});
       }
     }
   }
