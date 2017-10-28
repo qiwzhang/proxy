@@ -104,6 +104,9 @@ class MixerControl final : public ThreadLocal::ThreadLocalObject,
   std::unique_ptr<::istio::mixer_client::MixerClient> mixer_client_;
   // The mixer config
   const MixerConfig& mixer_config_;
+
+  CheckTransport::AsyncClientPtr check_client_;
+  ReportTransport::AsyncClientPtr report_client_;
 };
 
 }  // namespace Mixer
