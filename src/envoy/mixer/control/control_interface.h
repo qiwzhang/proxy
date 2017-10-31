@@ -5,12 +5,6 @@
 namespace istio {
   namespace mixer_client {
 
-    class HttpRequestData {
-    };
-    
-    class HttpResponseData {
-    };
-    
     class HttpRequestHandler {
       istio::mixer_client::CancelFunc Check(::istio::mixer_client::TransportCheckFunc transport,
 					    ::istio::mixer_client::DoneFunc on_done);
@@ -19,20 +13,6 @@ namespace istio {
       void Report(std::unique_ptr<HttpResponseData> response);
     };
 
-    class TcpRequestData {
-    };
-    
-    class TcpResponseData {
-    };
-    
-    class TcpRequestHandler {
-      istio::mixer_client::CancelFunc Check(::istio::mixer_client::TransportCheckFunc transport,
-					    ::istio::mixer_client::DoneFunc on_done);
-
-      // Make remote report call.
-      void Report(std::unique_ptr<TcpResponseData> response);
-    };
-    
     struct PerRouteConfig {
       bool enable_mixer_check;
       bool enable_mixer_report;

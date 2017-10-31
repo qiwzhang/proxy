@@ -57,71 +57,11 @@ void SetInt64Attribute(const std::string& name, uint64_t value,
 }
 
 std::map<std::string, std::string> ExtractHeaders(const HeaderMap& header_map) {
-  std::map<std::string, std::string> headers;
-  header_map.iterate(
-      [](const HeaderEntry& header, void* context) -> HeaderMap::Iterate {
-        std::map<std::string, std::string>* header_map =
-            static_cast<std::map<std::string, std::string>*>(context);
-        (*header_map)[header.key().c_str()] = header.value().c_str();
-        return HeaderMap::Iterate::Continue;
-      },
-      &headers);
-  return headers;
 }
 
-void FillRequestHeaderAttributes(const HeaderMap& header_map,
-                                 Attributes* attr) {
-  SetStringAttribute(kRequestPath, header_map.Path()->value().c_str(), attr);
-  SetStringAttribute(kRequestHost, header_map.Host()->value().c_str(), attr);
-
-  // Since we're in an HTTP filter, if the scheme header doesn't exist we can
-  // fill it in with a reasonable value.
-  SetStringAttribute(
-      kRequestScheme,
-      header_map.Scheme() ? header_map.Scheme()->value().c_str() : "http",
-      attr);
-
-  if (header_map.UserAgent()) {
-    SetStringAttribute(kRequestUserAgent,
-                       header_map.UserAgent()->value().c_str(), attr);
-  }
-  if (header_map.Method()) {
-    SetStringAttribute(kRequestMethod, header_map.Method()->value().c_str(),
-                       attr);
-  }
-
-  const HeaderEntry* referer = header_map.get(kRefererHeaderKey);
-  if (referer) {
-    std::string val(referer->value().c_str(), referer->value().size());
-    SetStringAttribute(kRequestReferer, val, attr);
-  }
-
-  AttributesBuilder(attr).AddStringMap(kRequestHeaders,
-                                       ExtractHeaders(header_map));
-}
-
-void FillResponseHeaderAttributes(const HeaderMap* header_map,
-                                  Attributes* attr) {
-  if (header_map) {
-    AttributesBuilder(attr).AddStringMap(kResponseHeaders,
-                                         ExtractHeaders(*header_map));
-  }
-}
 
 void FillRequestInfoAttributes(const AccessLog::RequestInfo& info,
                                int check_status_code, Attributes* attr) {
-  AttributesBuilder builder(attr);
-  builder.AddInt64(kRequestSize, info.bytesReceived());
-  builder.AddInt64(kResponseSize, info.bytesSent());
-  builder.AddDuration(
-      kResponseDuration,
-      std::chrono::duration_cast<std::chrono::nanoseconds>(info.duration()));
-
-  if (info.responseCode().valid()) {
-    builder.AddInt64(kResponseCode, info.responseCode().value());
-  } else {
-    builder.AddInt64(kResponseCode, check_status_code);
-  }
 }
 
 void SetIPAttribute(const std::string& name, const Network::Address::Ip& ip,
@@ -195,50 +135,13 @@ void MixerControl::BuildHttpCheck(
     const ::istio::mixer::v1::Attributes_StringMap& map_pb,
     const std::string& source_user, const Utils::StringMap& route_attributes,
     const Network::Connection* connection) const {
-  for (const auto& it : map_pb.entries()) {
-    SetMeshAttribute(it.first, it.second, &request_data->attributes);
-  }
-  for (const auto& attribute : route_attributes) {
-    SetMeshAttribute(attribute.first, attribute.second,
-                     &request_data->attributes);
-  }
-  FillRequestHeaderAttributes(headers, &request_data->attributes);
 
-  if (connection) {
-    const Network::Address::Ip* remote_ip = connection->remoteAddress().ip();
-    if (remote_ip) {
-      SetIPAttribute(kSourceIp, *remote_ip, &request_data->attributes);
-      SetInt64Attribute(kSourcePort, remote_ip->port(),
-                        &request_data->attributes);
-    }
-  }
-
-  SetStringAttribute(kSourceUser, source_user, &request_data->attributes);
-
-  AttributesBuilder(&request_data->attributes)
-      .AddTimestamp(kRequestTime, std::chrono::system_clock::now());
-  SetStringAttribute(kContextProtocol, "http", &request_data->attributes);
-
-  mixer_config_.ExtractQuotaAttributes(&request_data->attributes);
-  for (const auto& attribute : mixer_config_.mixer_attributes) {
-    SetMeshAttribute(attribute.first, attribute.second,
-                     &request_data->attributes);
-  }
 }
 
 void MixerControl::BuildHttpReport(HttpRequestDataPtr request_data,
                                    const HeaderMap* response_headers,
                                    const AccessLog::RequestInfo& request_info,
                                    int check_status) const {
-  // Use all Check attributes for Report.
-  // Add additional Report attributes.
-  FillResponseHeaderAttributes(response_headers, &request_data->attributes);
-
-  FillRequestInfoAttributes(request_info, check_status,
-                            &request_data->attributes);
-
-  AttributesBuilder(&request_data->attributes)
-      .AddTimestamp(kResponseTime, std::chrono::system_clock::now());
 }
 
 void MixerControl::BuildTcpCheck(HttpRequestDataPtr request_data,
