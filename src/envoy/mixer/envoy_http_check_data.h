@@ -17,7 +17,6 @@
 
 
 #include "common/http/headers.h"
-#include "envoy/json/json_object.h"
 #include "control/include/http_check_data.h"
 
 namespace Envoy {
@@ -32,15 +31,15 @@ public:
   // its value and remove it from the headers.
   bool ExtractIstioAttributes(std::string* data) override;
   // base64 encode data, and add it to the HTTP header.
-  void AddIstoAttributes(const std::string& data) override;
+  void AddIstioAttributes(const std::string& data) override;
 
   bool GetSourceIpPort(std::string* ip, int* port) const override;
 
   bool GetSourceUser(std::string* user) const override;
   
-  std::map<std::string, std::string> GetHeaders() const override;
+  std::map<std::string, std::string> GetRequestHeaders() const override;
 
-  bool FindHeader(HeaderType header_type, std::string* value) const override;
+  bool FindRequestHeader(HeaderType header_type, std::string* value) const override;
 private:
   HeaderMap& headers_;
   const Network::Connection* connection_;

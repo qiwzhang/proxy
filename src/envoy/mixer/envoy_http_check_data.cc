@@ -19,7 +19,14 @@
 namespace Envoy {
 namespace Http {
 namespace Mixer {
+  namespace {
+    
+const LowerCaseString kIstioAttributeHeader("x-istio-attributes");
+    
+  }  // namespace
+  
 
+  
   bool EnvoyHttpCheckData::ExtractIstioAttributes(std::string* data) override {    
     // Extract attributes from x-istio-attributes header
     const HeaderEntry* entry = headers_.get(Utils::kIstioAttributeHeader);
@@ -31,12 +38,13 @@ namespace Mixer {
     return false;
   }
 
-  void EnvoyHttpCheckData::AddIstoAttributes(const std::string& serialized_str) override {
+  void EnvoyHttpCheckData::AddIstioAttributes(const std::string& serialized_str) override {
     std::string base64 =
       Base64::encode(serialized_str.c_str(), serialized_str.size());
     ENVOY_LOG(debug, "Mixer forward attributes set: {}", base64);
     headers.addReferenceKey(Utils::kIstioAttributeHeader, base64);
   }
+
   
   bool EnvoyHttpCheckData::GetSourceIpPort(std::string* str_ip, int* port) override {
     if (connection_) {
@@ -67,11 +75,11 @@ namespace Mixer {
     return false;
   }
 
-  std::map<std::string, std::string> GetHeaders() const override {
+  std::map<std::string, std::string> GetRequestHeaders() const override {
     return Utils::ExtractHeaders(header_map_);
   }
   
-  bool EnvoyHttpCheckData::FindHeader(HeaderType header_type, std::string* value) const override {
+  bool EnvoyHttpCheckData::FindRequestHeader(HeaderType header_type, std::string* value) const override {
     switch header_type {
       case HEADER_PATH:
 	if (headers_.Path()) {
@@ -120,8 +128,7 @@ namespace Mixer {
       }
     return false;
   }
-  
-
+ 
     
 
   

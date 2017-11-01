@@ -16,25 +16,27 @@
 #pragma once
 
 #include "common/http/headers.h"
-#include "control/include/http_report_data.h"
+#include "control/include/tcp_check_data.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-  class EnvoyHttpReportData : public HttpReportData {
+  class EnvoyTcpReportData : public TcpReportData {
 public:
-  EnvoyHttpReportData(const HeaderMap& headers,
-		      const AccessLog::RequestInfo& info) : headers_(headers),
-      info_(info) {}
+  EnvoyTcpReportData(uint64_t received_bytes,
+		     uint64_t send_bytes,
+		     std::chrono::nanoseconds duration,
+		     Upstream::HostDescriptionConstSharedPtr upstreamHost);
 
-    std::map<std::string, std::string> EnvoyHttpReportData::GetResponseHeaders() const override;
-  
-    void GetReportInfo(HttpReportData::ReportInfo* data) const override;
+  bool GetDestinationIpPort(std::string* ip, int* port) const override; 
+  void GetReportInfo(TcpReportData::ReportInfo* data) const override;
     
 private:
-  HeaderMap& headers_;
-  const AccessLog::RequestInfo& info_;
+  uint64_t received_bytes_;
+  uint64_t send_bytes_;
+  std::chrono::nanoseconds duration_;
+  Upstream::HostDescriptionConstSharedPtr upstreamHost_;
 }
 
 

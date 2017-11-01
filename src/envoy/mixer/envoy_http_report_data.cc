@@ -19,11 +19,11 @@ namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-  std::map<std::string, std::string> EnvoyHttpReportData::GetResponseHeaders() const override {
+  std::map<std::string, std::string> EnvoyHttpReportData::GetResponseHeaders() const {
     return Utils::ExtractHeaders(header_map_);
   }
   
-  void EnvoyHttpReportData::GetInfo(RequestInfo* data) const override {
+  void EnvoyHttpReportData::GetReportInfo(HttpReportData::ReportInfo* data) const {
     data->received_bytes = info_.bytesReceived();
     data->send_bytes = info_.bytesSent();
     data->duration = 
