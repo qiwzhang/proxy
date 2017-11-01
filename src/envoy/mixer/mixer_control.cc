@@ -124,18 +124,6 @@ void SetInt64Attribute(const std::string& name, uint64_t value,
   AttributesBuilder(attr).AddInt64(name, value);
 }
 
-std::map<std::string, std::string> ExtractHeaders(const HeaderMap& header_map) {
-  std::map<std::string, std::string> headers;
-  header_map.iterate(
-      [](const HeaderEntry& header, void* context) -> HeaderMap::Iterate {
-        std::map<std::string, std::string>* header_map =
-            static_cast<std::map<std::string, std::string>*>(context);
-        (*header_map)[header.key().c_str()] = header.value().c_str();
-        return HeaderMap::Iterate::Continue;
-      },
-      &headers);
-  return headers;
-}
 
 void FillRequestHeaderAttributes(const HeaderMap& header_map,
                                  Attributes* attr) {

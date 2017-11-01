@@ -13,31 +13,28 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <map>
-#include <string>
-
-#include "common/http/headers.h"
-#include "envoy/json/json_object.h"
+#include "src/envoy/mixer/envoy_http_check_data.h"
 
 namespace Envoy {
 namespace Http {
-namespace Utils {
+namespace Mixer {
 
-// The internal header to pass istio attributes.
-extern const LowerCaseString kIstioAttributeHeader;
+  std::map<std::string, std::string> EnvoyHttpReportData::GetResponseHeaders() const override {
+    return Utils::ExtractHeaders(header_map_);
+  }
+  
+  void EnvoyHttpReportData::GetInfo(RequestInfo* data) const override {
+    data->received_bytes = info_.bytesReceived();
+    data->send_bytes = info_.bytesSent();
+    data->duration = 
+      std::chrono::duration_cast<std::chrono::nanoseconds>(info_.duration());
 
-// The string map.
-typedef std::map<std::string, std::string> StringMap;
-
-// Serialize two string maps to string.
-std::string SerializeTwoStringMaps(const StringMap& map1,
-                                   const StringMap& map2);
-
-// Extract HTTP headers into a string map
-StringMap ExtractHeaders(const HeaderMap& header_map);
- 
-}  // namespace Utils
+    if (info.responseCode().valid()) {
+      data->response_code = info.responseCode().value();
+    }
+  }
+  
+  
+}  // namespace Mixer
 }  // namespace Http
 }  // namespace Envoy

@@ -15,29 +15,26 @@
 
 #pragma once
 
-#include <map>
-#include <string>
-
 #include "common/http/headers.h"
 #include "envoy/json/json_object.h"
+#include "control/include/http_check_data.h"
 
 namespace Envoy {
 namespace Http {
-namespace Utils {
+namespace Mixer {
 
-// The internal header to pass istio attributes.
-extern const LowerCaseString kIstioAttributeHeader;
+  class EnvoyHttpReportData : public HttpReportData {
+public:
+  EnvoyHttpReportData(const HeaderMap& headers,
+		      const AccessLog::RequestInfo& info) : headers_(headers),
+      info_(info) {}
+  
+private:
+  HeaderMap& headers_;
+  const AccessLog::RequestInfo& info_;
+}
 
-// The string map.
-typedef std::map<std::string, std::string> StringMap;
 
-// Serialize two string maps to string.
-std::string SerializeTwoStringMaps(const StringMap& map1,
-                                   const StringMap& map2);
-
-// Extract HTTP headers into a string map
-StringMap ExtractHeaders(const HeaderMap& header_map);
- 
-}  // namespace Utils
+}  // namespace Mixer
 }  // namespace Http
 }  // namespace Envoy
