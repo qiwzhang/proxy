@@ -17,6 +17,7 @@
 #include "common/common/logger.h"
 #include "common/http/headers.h"
 #include "common/http/utility.h"
+#include "control/include/utils/status.h"
 #include "envoy/registry/registry.h"
 #include "envoy/ssl/connection.h"
 #include "envoy/thread_local/thread_local.h"
@@ -24,6 +25,7 @@
 #include "src/envoy/mixer/config.h"
 #include "src/envoy/mixer/envoy_http_check_data.h"
 #include "src/envoy/mixer/envoy_http_report_data.h"
+#include "src/envoy/mixer/grpc_transport.h"
 #include "src/envoy/mixer/mixer_control.h"
 #include "src/envoy/mixer/utils.h"
 
@@ -32,15 +34,11 @@
 #include <thread>
 
 using ::google::protobuf::util::Status;
-using StatusCode = ::google::protobuf::util::error::Code;
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 namespace {
-
-// Switch to turn off attribute forwarding
-const std::string kJsonNameForwardSwitch("mixer_forward");
 
 // Switch to turn off mixer both check and report
 // They can be overrided by "mixer_check" and "mixer_report" flags.
@@ -55,54 +53,6 @@ const std::string kJsonNameMixerReport("mixer_report");
 // The prefix in route opaque data to define
 // a sub string map of mixer attributes passed to mixer for the route.
 const std::string kPrefixMixerAttributes("mixer_attributes.");
-
-// The prefix in route opaque data to define
-// a sub string map of mixer attributes forwarded to upstream proxy.
-const std::string kPrefixForwardAttributes("mixer_forward_attributes.");
-
-// Convert Status::code to HTTP code
-int HttpCode(int code) {
-  // Map Canonical codes to HTTP status codes. This is based on the mapping
-  // defined by the protobuf http error space.
-  switch (code) {
-    case StatusCode::OK:
-      return 200;
-    case StatusCode::CANCELLED:
-      return 499;
-    case StatusCode::UNKNOWN:
-      return 500;
-    case StatusCode::INVALID_ARGUMENT:
-      return 400;
-    case StatusCode::DEADLINE_EXCEEDED:
-      return 504;
-    case StatusCode::NOT_FOUND:
-      return 404;
-    case StatusCode::ALREADY_EXISTS:
-      return 409;
-    case StatusCode::PERMISSION_DENIED:
-      return 403;
-    case StatusCode::RESOURCE_EXHAUSTED:
-      return 429;
-    case StatusCode::FAILED_PRECONDITION:
-      return 400;
-    case StatusCode::ABORTED:
-      return 409;
-    case StatusCode::OUT_OF_RANGE:
-      return 400;
-    case StatusCode::UNIMPLEMENTED:
-      return 501;
-    case StatusCode::INTERNAL:
-      return 500;
-    case StatusCode::UNAVAILABLE:
-      return 503;
-    case StatusCode::DATA_LOSS:
-      return 500;
-    case StatusCode::UNAUTHENTICATED:
-      return 401;
-    default:
-      return 500;
-  }
-}
 
 }  // namespace
 
@@ -146,7 +96,6 @@ class Instance : public Http::StreamDecoderFilter,
   StreamDecoderFilterCallbacks* decoder_callbacks_;
 
   bool initiating_call_;
-  int check_status_code_;
 
   bool mixer_check_disabled_;
   bool mixer_report_disabled_;
@@ -180,21 +129,6 @@ class Instance : public Http::StreamDecoderFilter,
     }
   }
 
-  // attribute forward switch (on by default)
-  bool forward_disabled() {
-    auto route = decoder_callbacks_->route();
-    if (route != nullptr) {
-      auto entry = route->routeEntry();
-      if (entry != nullptr) {
-        auto key = entry->opaqueConfig().find(kJsonNameForwardSwitch);
-        if (key != entry->opaqueConfig().end() && key->second == "off") {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
   // Extract a prefixed string map from route opaque config.
   // Route opaque config only supports flat name value pair, have to use
   // prefix to create a sub string map. such as:
@@ -220,8 +154,7 @@ class Instance : public Http::StreamDecoderFilter,
   Instance(ConfigPtr config)
       : mixer_control_(config->mixer_control()),
         state_(NotStarted),
-        initiating_call_(false),
-        check_status_code_(HttpCode(StatusCode::UNKNOWN)) {
+        initiating_call_(false) {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
   }
 
@@ -232,7 +165,7 @@ class Instance : public Http::StreamDecoderFilter,
 
     auto checK_data = std::unique_ptr<::istio::mixer_control::HttpCheckData>(
         new HttpCheckData(headers, decoder_callbacks_->connection()));
-    auto per_route_config = mixer_control_.mixer_config().PerRouteConfig(
+    auto per_route_config = MixerConfig::CreatePerRouteConfig(
         mixer_check_disabled_, mixer_report_disabled_,
         GetRouteStringMap(kPrefixMixerAttributes));
     handler_ = mixer_control_.controller()->CreateHttpRequestHandler(
@@ -241,7 +174,7 @@ class Instance : public Http::StreamDecoderFilter,
     state_ = Calling;
     initiating_call_ = true;
     cancel_check_ = handler_->Check(
-        CheckTransport::GetFunc(mixer_control_.cm(), headers),
+        CheckTransport::GetFunc(mixer_control_.cm(), &headers),
         [this](const Status& status) { completeCheck(status); });
     initiating_call_ = false;
 
@@ -293,7 +226,8 @@ class Instance : public Http::StreamDecoderFilter,
     }
     if (!status.ok() && state_ != Responded) {
       state_ = Responded;
-      check_status_code_ = HttpCode(status.error_code());
+      int status_code =
+          ::istio::mixer_control::utils::StatusHttpCode(status.error_code());
       Utility::sendLocalReply(*decoder_callbacks_, false,
                               Code(check_status_code_), status.ToString());
       return;

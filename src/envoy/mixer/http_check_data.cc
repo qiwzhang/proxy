@@ -47,21 +47,7 @@ void HttpCheckData::AddIstioAttributes(
 
 bool HttpCheckData::GetSourceIpPort(std::string* str_ip, int* port) override {
   if (connection_) {
-    const Network::Address::Ip* ip = connection->remoteAddress().ip();
-    if (ip) {
-      *port = ip->port();
-      if (ip->ipv4()) {
-        uint32_t ipv4 = ip->ipv4()->address();
-        *str_ip =
-            std::string(reinterpret_cast<const char*>(&ipv4), sizeof(ipv4));
-        return true;
-      }
-      if (ip->ipv6()) {
-        std::array<uint8_t, 16> ipv6 = ip.ipv6()->address();
-        *str_ip = std::string(reinterpret_cast<const char*>(ipv6.data()), 16);
-        return true;
-      }
-    }
+    return Utils::GetIpPort(connection->remoteAddress().ip(), str_ip, port);
   }
   return false;
 }

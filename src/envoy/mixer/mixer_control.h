@@ -32,7 +32,6 @@ class MixerControl final : public ThreadLocal::ThreadLocalObject {
   Upstream::ClusterManager& cm() { return cm_; }
 
   ::istio::mixer_control::Controller* controller() { return controller_.get(); }
-  const MixerConfig& mixer_config() { return mixer_config_; }
 
  private:
   // Envoy cluster manager for making gRPC calls.

@@ -38,6 +38,9 @@ std::string SerializeTwoStringMaps(const StringMap& map1,
 // Extract HTTP headers into a string map
 StringMap ExtractHeaders(const HeaderMap& header_map);
 
+// Get ip and port from Envoy ip.
+bool GetIpPort(const Network::Address::Ip* ip, std::string* str_ip, int* port);
+
 }  // namespace Utils
 }  // namespace Http
 }  // namespace Envoy

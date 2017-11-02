@@ -42,8 +42,8 @@ MixerControl::MixerControl(const MixerConfig& mixer_config,
                            Event::Dispatcher& dispatcher,
                            Runtime::RandomGenerator& random)
     : cm_(cm), mixer_config_(mixer_config) {
-  ::istio::mixer_client::Controller::FactoryData options(
-      mixer_config.filter_config());
+  ::istio::mixer_client::Controller::FactoryData options;
+  options.mixer_config = mixer_config.filter_config;
 
   options.check_transport = CheckTransport::GetFunc(cm, nullptr);
   options.report_transport = ReportTransport::GetFunc(cm);
