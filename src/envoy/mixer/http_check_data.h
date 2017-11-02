@@ -15,14 +15,18 @@
 
 #pragma once
 
-#include "common/http/headers.h"
 #include "control/include/http_check_data.h"
+
+#include "common/common/logger.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/connection.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-class HttpCheckData : public ::istio::mixer_control::HttpCheckData {
+class HttpCheckData : public ::istio::mixer_control::HttpCheckData,
+                      public Logger::Loggable<Logger::Id::http> {
  public:
   HttpCheckData(HeaderMap& headers, const Network::Connection* connection)
       : headers_(headers), connection_(connection) {}

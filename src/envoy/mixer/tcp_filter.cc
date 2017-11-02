@@ -21,9 +21,9 @@
 #include "envoy/server/instance.h"
 #include "server/config/network/http_connection_manager.h"
 #include "src/envoy/mixer/config.h"
-#include "src/envoy/mixer/envoy_tcp_check_data.h"
-#include "src/envoy/mixer/envoy_tcp_report_data.h"
 #include "src/envoy/mixer/mixer_control.h"
+#include "src/envoy/mixer/tcp_check_data.h"
+#include "src/envoy/mixer/tcp_report_data.h"
 
 using ::google::protobuf::util::Status;
 using StatusCode = ::google::protobuf::util::error::Code;
@@ -128,10 +128,9 @@ class TcpInstance : public Network::Filter,
                    filter_callbacks_->connection().remoteAddress().asString(),
                    filter_callbacks_->connection().localAddress().asString());
 
-    auto checK_data = std::unique_ptr<::istio::mixer_control::TcpCheckData>(
-        new TcpCheckData(filter_callbacks_->connection()));
-    handler_ = mixer_control_.controller()->CreateTcpRequestHandler(
-        std::move(check_data));
+    auto data = std::unique_ptr<::istio::mixer_control::TcpCheckData>(
+         new TcpCheckData(filter_callbacks_->connection()));
+    handler_ = mixer_control_.controller()->CreateTcpRequestHandler(std::move(data));
 
     if (state_ == State::NotStarted) {
       state_ = State::Calling;

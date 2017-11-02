@@ -19,6 +19,7 @@
 using ::istio::mixer::v1::Attributes;
 using ::istio::mixer_client::AttributesBuilder;
 using ::istio::mixer::v1::config::client::MixerControlConfig;
+using ::istio::mixer::v1::config::client::MixerFilterConfig;
 
 namespace Envoy {
 namespace Http {
@@ -93,7 +94,7 @@ std::unique_ptr<MixerControlConfig> MixerConfig::CreatePerRouteConfig(
     const std::map<std::string, std::string>& attributes) {
   std::unique_ptr<MixerControlConfig> config(new MixerControlConfig);
   config->set_enable_mixer_check(!disable_check);
-  config->set_enable_mixer_Report(!disable_report);
+  config->set_enable_mixer_report(!disable_report);
 
   AttributesBuilder builder(config->mutable_mixer_attributes());
   for (const auto& it : attributes) {

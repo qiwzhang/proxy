@@ -15,8 +15,10 @@
 
 #pragma once
 
-#include "common/http/headers.h"
 #include "control/include/http_report_data.h"
+
+#include "envoy/http/access_log.h"
+#include "envoy/http/header_map.h"
 
 namespace Envoy {
 namespace Http {
@@ -24,7 +26,7 @@ namespace Mixer {
 
 class HttpReportData : public ::istio::mixer_control::HttpReportData {
  public:
-  HttpReportData(const HeaderMap& headers, const AccessLog::RequestInfo& info)
+  HttpReportData(const HeaderMap* headers, const AccessLog::RequestInfo& info)
       : headers_(headers), info_(info) {}
 
   std::map<std::string, std::string> GetResponseHeaders() const override;
@@ -33,9 +35,9 @@ class HttpReportData : public ::istio::mixer_control::HttpReportData {
       ::istio::mixer_control::HttpReportData::ReportInfo* data) const override;
 
  private:
-  const HeaderMap& headers_;
+  const HeaderMap* headers_;
   const AccessLog::RequestInfo& info_;
-}
+};
 
 }  // namespace Mixer
 }  // namespace Http

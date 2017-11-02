@@ -41,8 +41,8 @@ MixerControl::MixerControl(const MixerConfig& mixer_config,
                            Upstream::ClusterManager& cm,
                            Event::Dispatcher& dispatcher,
                            Runtime::RandomGenerator& random)
-    : cm_(cm), mixer_config_(mixer_config) {
-  ::istio::mixer_client::Controller::FactoryData options;
+    : cm_(cm) {
+  ::istio::mixer_control::Controller::FactoryData options;
   options.mixer_config = mixer_config.filter_config;
 
   options.check_transport = CheckTransport::GetFunc(cm, nullptr);
@@ -58,7 +58,7 @@ MixerControl::MixerControl(const MixerConfig& mixer_config,
     return random.uuid();
   };
 
-  controller_ = ::istio::mixer_client::Controller::Create(options);
+  controller_ = ::istio::mixer_control::Controller::Create(options);
 }
 
 }  // namespace Mixer

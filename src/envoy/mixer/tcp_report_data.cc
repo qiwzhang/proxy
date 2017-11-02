@@ -13,7 +13,8 @@
  * limitations under the License.
  */
 
-#include "src/envoy/mixer/tcp_check_data.h"
+#include "src/envoy/mixer/tcp_report_data.h"
+#include "src/envoy/mixer/utils.h"
 
 namespace Envoy {
 namespace Http {
@@ -22,22 +23,21 @@ namespace Mixer {
 TcpReportData::TcpReportData(
     uint64_t received_bytes, uint64_t send_bytes,
     std::chrono::nanoseconds duration,
-    Upstream::HostDescriptionConstSharedPtr upstreamHost)
+    Upstream::HostDescriptionConstSharedPtr upstream_host)
     : received_bytes_(received_bytes),
       send_bytes_(send_bytes),
       duration_(duration),
-      upstreamHost_(upstreamHost) {}
+      upstream_host_(upstream_host) {}
 
-bool TcpReportData::GetDestinationIpPort(std::string* str_ip,
-                                         int* port) const override {
-  if (upstreamHost && upstreamHost->address()) {
-    return Utils::GetIpPort(upstreamHost->address()->ip(), str_ip, port);
+bool TcpReportData::GetDestinationIpPort(std::string* str_ip, int* port) const {
+  if (upstream_host_ && upstream_host_->address()) {
+    return Utils::GetIpPort(upstream_host_->address()->ip(), str_ip, port);
   }
   return false;
 }
 
 void TcpReportData::GetReportInfo(
-    ::istio::mixer_control::TcpReportData::ReportInfo* data) const override {
+    ::istio::mixer_control::TcpReportData::ReportInfo* data) const {
   data->received_bytes = received_bytes_;
   data->send_bytes = send_bytes_;
   data->duration = duration_;

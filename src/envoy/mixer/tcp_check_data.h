@@ -17,13 +17,15 @@
 
 #include "control/include/tcp_check_data.h"
 
+#include "envoy/network/connection.h"
+
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
 class TcpCheckData : public ::istio::mixer_control::TcpCheckData {
  public:
-  TcpCheckData(const Network::Connection* connection)
+  TcpCheckData(const Network::Connection& connection)
       : connection_(connection) {}
 
   bool GetSourceIpPort(std::string* ip, int* port) const override;
@@ -31,7 +33,7 @@ class TcpCheckData : public ::istio::mixer_control::TcpCheckData {
   bool GetSourceUser(std::string* user) const override;
 
  private:
-  const Network::Connection* connection_;
+  const Network::Connection& connection_;
 };
 
 }  // namespace Mixer

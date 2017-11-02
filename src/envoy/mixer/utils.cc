@@ -20,24 +20,6 @@ namespace Envoy {
 namespace Http {
 namespace Utils {
 
-const LowerCaseString kIstioAttributeHeader("x-istio-attributes");
-
-std::string SerializeTwoStringMaps(const StringMap& map1,
-                                   const StringMap& map2) {
-  ::istio::mixer::v1::Attributes_StringMap pb;
-  ::google::protobuf::Map<std::string, std::string>* map_pb =
-      pb.mutable_entries();
-  for (const auto& it : map1) {
-    (*map_pb)[it.first] = it.second;
-  }
-  for (const auto& it : map2) {
-    (*map_pb)[it.first] = it.second;
-  }
-  std::string str;
-  pb.SerializeToString(&str);
-  return str;
-}
-
 std::map<std::string, std::string> ExtractHeaders(const HeaderMap& header_map) {
   std::map<std::string, std::string> headers;
   header_map.iterate(
@@ -60,8 +42,19 @@ bool GetIpPort(const Network::Address::Ip* ip, std::string* str_ip, int* port) {
       return true;
     }
     if (ip->ipv6()) {
-      std::array<uint8_t, 16> ipv6 = ip.ipv6()->address();
+      std::array<uint8_t, 16> ipv6 = ip->ipv6()->address();
       *str_ip = std::string(reinterpret_cast<const char*>(ipv6.data()), 16);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool GetSourceUser(const Network::Connection* connection, std::string* user) {
+  if (connection) {
+    Ssl::Connection* ssl = const_cast<Ssl::Connection*>(connection->ssl());
+    if (ssl != nullptr) {
+      *user = ssl->uriSanPeerCertificate();
       return true;
     }
   }

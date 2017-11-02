@@ -18,28 +18,21 @@
 #include <map>
 #include <string>
 
-#include "common/http/headers.h"
-#include "envoy/json/json_object.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/connection.h"
 
 namespace Envoy {
 namespace Http {
 namespace Utils {
 
-// The internal header to pass istio attributes.
-extern const LowerCaseString kIstioAttributeHeader;
-
-// The string map.
-typedef std::map<std::string, std::string> StringMap;
-
-// Serialize two string maps to string.
-std::string SerializeTwoStringMaps(const StringMap& map1,
-                                   const StringMap& map2);
-
 // Extract HTTP headers into a string map
-StringMap ExtractHeaders(const HeaderMap& header_map);
+std::map<std::string, std::string> ExtractHeaders(const HeaderMap& header_map);
 
 // Get ip and port from Envoy ip.
 bool GetIpPort(const Network::Address::Ip* ip, std::string* str_ip, int* port);
+
+// Get user id from ssl.
+bool GetSourceUser(const Network::Connection* connection, std::string* user);
 
 }  // namespace Utils
 }  // namespace Http

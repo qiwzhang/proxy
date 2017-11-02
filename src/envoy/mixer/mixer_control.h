@@ -16,6 +16,9 @@
 #pragma once
 
 #include "control/include/controller.h"
+#include "envoy/event/dispatcher.h"
+#include "envoy/thread_local/thread_local.h"
+#include "envoy/runtime/runtime.h"
 #include "envoy/upstream/cluster_manager.h"
 #include "src/envoy/mixer/config.h"
 
@@ -38,8 +41,6 @@ class MixerControl final : public ThreadLocal::ThreadLocalObject {
   Upstream::ClusterManager& cm_;
   // The mixer control
   std::unique_ptr<::istio::mixer_control::Controller> controller_;
-  // The mixer config
-  const MixerConfig& mixer_config_;
 };
 
 }  // namespace Mixer

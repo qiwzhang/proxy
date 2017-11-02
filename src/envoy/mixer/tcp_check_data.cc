@@ -20,20 +20,12 @@ namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-bool TcpCheckData::GetSourceIpPort(std::string* str_ip, int* port) override {
-  if (connection_) {
-    return Utils::GetIpPort(connection->remoteAddress().ip(), str_ip, port);
-  }
-  return false;
+bool TcpCheckData::GetSourceIpPort(std::string* str_ip, int* port) const {
+  return Utils::GetIpPort(connection_.remoteAddress().ip(), str_ip, port);
 }
 
-bool TcpCheckData::GetSourceUser(std::string* user) const override {
-  Ssl::Connection* ssl = const_cast<Ssl::Connection*>(connection_->ssl());
-  if (ssl != nullptr) {
-    *user = ssl->uriSanPeerCertificate();
-    return true;
-  }
-  return false;
+bool TcpCheckData::GetSourceUser(std::string* user) const {
+  return Utils::GetSourceUser(&connection_, user);
 }
 
 }  // namespace Mixer

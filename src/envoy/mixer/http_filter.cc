@@ -23,9 +23,9 @@
 #include "envoy/thread_local/thread_local.h"
 #include "server/config/network/http_connection_manager.h"
 #include "src/envoy/mixer/config.h"
-#include "src/envoy/mixer/envoy_http_check_data.h"
-#include "src/envoy/mixer/envoy_http_report_data.h"
 #include "src/envoy/mixer/grpc_transport.h"
+#include "src/envoy/mixer/http_check_data.h"
+#include "src/envoy/mixer/http_report_data.h"
 #include "src/envoy/mixer/mixer_control.h"
 #include "src/envoy/mixer/utils.h"
 
@@ -133,8 +133,9 @@ class Instance : public Http::StreamDecoderFilter,
   // Route opaque config only supports flat name value pair, have to use
   // prefix to create a sub string map. such as:
   //    prefix.key1 = value1
-  Utils::StringMap GetRouteStringMap(const std::string& prefix) {
-    Utils::StringMap attrs;
+  std::map<std::string, std::string> GetRouteStringMap(
+      const std::string& prefix) {
+    std::map<std::string, std::string> attrs;
     auto route = decoder_callbacks_->route();
     if (route != nullptr) {
       auto entry = route->routeEntry();
@@ -163,13 +164,13 @@ class Instance : public Http::StreamDecoderFilter,
 
     check_mixer_route_flags();
 
-    auto checK_data = std::unique_ptr<::istio::mixer_control::HttpCheckData>(
+    auto data = std::unique_ptr<::istio::mixer_control::HttpCheckData>(
         new HttpCheckData(headers, decoder_callbacks_->connection()));
     auto per_route_config = MixerConfig::CreatePerRouteConfig(
         mixer_check_disabled_, mixer_report_disabled_,
         GetRouteStringMap(kPrefixMixerAttributes));
     handler_ = mixer_control_.controller()->CreateHttpRequestHandler(
-        std::move(check_data), std::move(per_route_config));
+        std::move(data), std::move(per_route_config));
 
     state_ = Calling;
     initiating_call_ = true;
@@ -229,7 +230,7 @@ class Instance : public Http::StreamDecoderFilter,
       int status_code =
           ::istio::mixer_control::utils::StatusHttpCode(status.error_code());
       Utility::sendLocalReply(*decoder_callbacks_, false,
-                              Code(check_status_code_), status.ToString());
+                              Code(status_code), status.ToString());
       return;
     }
 

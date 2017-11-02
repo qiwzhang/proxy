@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-#include "src/envoy/mixer/http_check_data.h"
+#include "src/envoy/mixer/http_report_data.h"
 #include "src/envoy/mixer/utils.h"
 
 namespace Envoy {
@@ -21,7 +21,10 @@ namespace Http {
 namespace Mixer {
 
 std::map<std::string, std::string> HttpReportData::GetResponseHeaders() const {
-  return Utils::ExtractHeaders(headers_);
+  if (headers_) {
+    return Utils::ExtractHeaders(*headers_);
+  }
+  return std::map<std::string, std::string>();
 }
 
 void HttpReportData::GetReportInfo(HttpReportData::ReportInfo* data) const {
@@ -30,8 +33,8 @@ void HttpReportData::GetReportInfo(HttpReportData::ReportInfo* data) const {
   data->duration =
       std::chrono::duration_cast<std::chrono::nanoseconds>(info_.duration());
 
-  if (info.responseCode().valid()) {
-    data->response_code = info.responseCode().value();
+  if (info_.responseCode().valid()) {
+    data->response_code = info_.responseCode().value();
   }
 }
 

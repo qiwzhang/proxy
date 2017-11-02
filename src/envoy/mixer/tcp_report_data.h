@@ -15,8 +15,8 @@
 
 #pragma once
 
+#include "control/include/tcp_report_data.h"
 #include "common/http/headers.h"
-#include "control/include/tcp_check_data.h"
 #include "envoy/upstream/cluster_manager.h"
 
 namespace Envoy {
@@ -27,7 +27,7 @@ class TcpReportData : public ::istio::mixer_control::TcpReportData {
  public:
   TcpReportData(uint64_t received_bytes, uint64_t send_bytes,
                 std::chrono::nanoseconds duration,
-                Upstream::HostDescriptionConstSharedPtr upstreamHost);
+                Upstream::HostDescriptionConstSharedPtr upstream_host);
 
   bool GetDestinationIpPort(std::string* ip, int* port) const override;
   void GetReportInfo(
@@ -37,8 +37,8 @@ class TcpReportData : public ::istio::mixer_control::TcpReportData {
   uint64_t received_bytes_;
   uint64_t send_bytes_;
   std::chrono::nanoseconds duration_;
-  Upstream::HostDescriptionConstSharedPtr upstreamHost_;
-}
+  Upstream::HostDescriptionConstSharedPtr upstream_host_;
+};
 
 }  // namespace Mixer
 }  // namespace Http
