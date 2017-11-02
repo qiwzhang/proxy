@@ -55,6 +55,13 @@ struct MixerConfig {
 
   // Extract quota attributes.
   void ExtractQuotaAttributes(::istio::mixer::v1::Attributes* attr) const;
+
+  const ::istio::mixer::v1::config::client::MixerFilterConfig& filer_config()
+      const;
+
+  std::unique_ptr<::istio::mixer::v1::config::client::MixerControlConfig>
+  per_route_config(bool disable_check, bool disable_report,
+                   const std::map<std::string, std::string>& attributes) const;
 };
 
 }  // namespace Mixer

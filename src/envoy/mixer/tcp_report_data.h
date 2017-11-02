@@ -15,27 +15,30 @@
 
 #pragma once
 
-
 #include "common/http/headers.h"
 #include "control/include/tcp_check_data.h"
+#include "envoy/upstream/cluster_manager.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-  class EnvoyTcpCheckData : public TcpCheckData {
-public:
-  EnvoyTcpCheckData(HeaderMap& headers, const Network::Connection* connection) : headers_(headers), connection_(connection) {}
-    
-  bool GetSourceIpPort(std::string* ip, int* port) const override;
+class TcpReportData : public ::istio::mixer_control::TcpReportData {
+ public:
+  TcpReportData(uint64_t received_bytes, uint64_t send_bytes,
+                std::chrono::nanoseconds duration,
+                Upstream::HostDescriptionConstSharedPtr upstreamHost);
 
-  bool GetSourceUser(std::string* user) const override;
-  
-private:
-  const Network::Connection* connection_;
-};
-    
+  bool GetDestinationIpPort(std::string* ip, int* port) const override;
+  void GetReportInfo(
+      ::istio::mixer_control::TcpReportData::ReportInfo* data) const override;
 
+ private:
+  uint64_t received_bytes_;
+  uint64_t send_bytes_;
+  std::chrono::nanoseconds duration_;
+  Upstream::HostDescriptionConstSharedPtr upstreamHost_;
+}
 
 }  // namespace Mixer
 }  // namespace Http

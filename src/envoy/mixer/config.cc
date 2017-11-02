@@ -43,6 +43,10 @@ const std::string kDisableReportBatch("disable_report_batch");
 const std::string kNetworkFailPolicy("network_fail_policy");
 const std::string kDisableTcpCheckCalls("disable_tcp_check_calls");
 
+// Pilot mesh attributes with the suffix will be treated as ipv4.
+// They will use BYTES attribute type.
+const std::string kIPSuffix = ".ip";
+
 void ReadString(const Json::Object& json, const std::string& name,
                 std::string* value) {
   if (json.hasObject(name)) {
@@ -59,6 +63,40 @@ void ReadStringMap(const Json::Object& json, const std::string& name,
           return true;
         });
   }
+}
+
+// Mesh attributes from Pilot are all string type.
+// The attributes with ".ip" suffix will be treated
+// as ipv4 and use BYTES attribute type.
+void MixerControl::SetMeshAttribute(const std::string& name,
+                                    const std::string& value,
+                                    Attributes* attr) const {
+  // Check with ".ip" suffix,
+  if (name.length() <= kIPSuffix.length() ||
+      name.compare(name.length() - kIPSuffix.length(), kIPSuffix.length(),
+                   kIPSuffix) != 0) {
+    AttributesBuilder(attr).AddString(name, value);
+    return;
+  }
+
+  in_addr ipv4_bytes;
+  if (inet_pton(AF_INET, value.c_str(), &ipv4_bytes) == 1) {
+    AttributesBuilder(attr).AddBytes(
+        name, std::string(reinterpret_cast<const char*>(&ipv4_bytes),
+                          sizeof(ipv4_bytes)));
+    return;
+  }
+
+  in6_addr ipv6_bytes;
+  if (inet_pton(AF_INET6, value.c_str(), &ipv6_bytes) == 1) {
+    AttributesBuilder(attr).AddBytes(
+        name, std::string(reinterpret_cast<const char*>(&ipv6_bytes),
+                          sizeof(ipv6_bytes)));
+    return;
+  }
+
+  ENVOY_LOG(warn, "Could not convert to ip: {}: {}", name, value);
+  AttributesBuilder(attr).AddString(name, value);
 }
 
 }  // namespace

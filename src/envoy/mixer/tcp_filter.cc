@@ -21,6 +21,8 @@
 #include "envoy/server/instance.h"
 #include "server/config/network/http_connection_manager.h"
 #include "src/envoy/mixer/config.h"
+#include "src/envoy/mixer/envoy_tcp_check_data.h"
+#include "src/envoy/mixer/envoy_tcp_report_data.h"
 #include "src/envoy/mixer/mixer_control.h"
 
 using ::google::protobuf::util::Status;
@@ -64,7 +66,7 @@ class TcpInstance : public Network::Filter,
 
   istio::mixer_client::CancelFunc cancel_check_;
   MixerControl& mixer_control_;
-  std::shared_ptr<HttpRequestData> request_data_;
+  std::unique_ptr<::istio::mixer_control::TcpRequestHandler> handler_;
   Network::ReadFilterCallbacks* filter_callbacks_{};
   State state_{State::NotStarted};
   bool calling_check_{};
@@ -126,25 +128,16 @@ class TcpInstance : public Network::Filter,
                    filter_callbacks_->connection().remoteAddress().asString(),
                    filter_callbacks_->connection().localAddress().asString());
 
-    // Reports are always enabled.. And TcpReport uses attributes
-    // extracted by BuildTcpCheck
-    request_data_ = std::make_shared<HttpRequestData>();
+    auto checK_data = std::unique_ptr<::istio::mixer_control::TcpCheckData>(
+        new TcpCheckData(filter_callbacks_->connection()));
+    handler_ = mixer_control_.controller()->CreateTcpRequestHandler(
+        std::move(check_data));
 
-    std::string origin_user;
-    Ssl::Connection* ssl = filter_callbacks_->connection().ssl();
-    if (ssl != nullptr) {
-      origin_user = ssl->uriSanPeerCertificate();
-    }
-    mixer_control_.BuildTcpCheck(request_data_, filter_callbacks_->connection(),
-                                 origin_user);
-
-    if (state_ == State::NotStarted &&
-        !mixer_control_.MixerTcpCheckDisabled()) {
+    if (state_ == State::NotStarted) {
       state_ = State::Calling;
       filter_callbacks_->connection().readDisable(true);
       calling_check_ = true;
-      cancel_check_ = mixer_control_.SendCheck(
-          request_data_, nullptr,
+      cancel_check_ = handler_->Check(
           [this](const Status& status) { completeCheck(status); });
       calling_check_ = false;
     }
@@ -184,13 +177,15 @@ class TcpInstance : public Network::Filter,
 
     if (event == Network::ConnectionEvent::RemoteClose ||
         event == Network::ConnectionEvent::LocalClose) {
-      if (state_ != State::Closed && request_data_) {
-        mixer_control_.BuildTcpReport(
-            request_data_, received_bytes_, send_bytes_, check_status_code_,
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::system_clock::now() - start_time_),
-            filter_callbacks_->upstreamHost());
-        mixer_control_.SendReport(request_data_);
+      if (state_ != State::Closed && handler_) {
+        auto report_data =
+            std::unique_ptr<::istio::mixer_control::TcpReportData>(
+                new TcpReportData(
+                    received_bytes_, send_bytes_,
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now() - start_time_),
+                    filter_callbacks_->upstreamHost()));
+        handler_->Report(std::move(report_data));
       }
       cancelCheck();
     }

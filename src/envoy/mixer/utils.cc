@@ -50,7 +50,7 @@ std::map<std::string, std::string> ExtractHeaders(const HeaderMap& header_map) {
       &headers);
   return headers;
 }
-  
+
 }  // namespace Utils
 }  // namespace Http
 }  // namespace Envoy

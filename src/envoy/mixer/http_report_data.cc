@@ -13,32 +13,27 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include "common/http/headers.h"
-#include "control/include/tcp_check_data.h"
+#include "src/envoy/mixer/http_check_data.h"
+#include "src/envoy/mixer/utils.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-  class EnvoyTcpReportData : public TcpReportData {
-public:
-  EnvoyTcpReportData(uint64_t received_bytes,
-		     uint64_t send_bytes,
-		     std::chrono::nanoseconds duration,
-		     Upstream::HostDescriptionConstSharedPtr upstreamHost);
-
-  bool GetDestinationIpPort(std::string* ip, int* port) const override; 
-  void GetReportInfo(TcpReportData::ReportInfo* data) const override;
-    
-private:
-  uint64_t received_bytes_;
-  uint64_t send_bytes_;
-  std::chrono::nanoseconds duration_;
-  Upstream::HostDescriptionConstSharedPtr upstreamHost_;
+std::map<std::string, std::string> HttpReportData::GetResponseHeaders() const {
+  return Utils::ExtractHeaders(headers_);
 }
 
+void HttpReportData::GetReportInfo(HttpReportData::ReportInfo* data) const {
+  data->received_bytes = info_.bytesReceived();
+  data->send_bytes = info_.bytesSent();
+  data->duration =
+      std::chrono::duration_cast<std::chrono::nanoseconds>(info_.duration());
+
+  if (info.responseCode().valid()) {
+    data->response_code = info.responseCode().value();
+  }
+}
 
 }  // namespace Mixer
 }  // namespace Http

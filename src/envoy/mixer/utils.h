@@ -37,7 +37,7 @@ std::string SerializeTwoStringMaps(const StringMap& map1,
 
 // Extract HTTP headers into a string map
 StringMap ExtractHeaders(const HeaderMap& header_map);
- 
+
 }  // namespace Utils
 }  // namespace Http
 }  // namespace Envoy

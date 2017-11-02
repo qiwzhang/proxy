@@ -13,28 +13,30 @@
  * limitations under the License.
  */
 
-#include "src/envoy/mixer/envoy_http_check_data.h"
+#pragma once
+
+#include "common/http/headers.h"
+#include "control/include/http_report_data.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-  std::map<std::string, std::string> EnvoyHttpReportData::GetResponseHeaders() const {
-    return Utils::ExtractHeaders(header_map_);
-  }
-  
-  void EnvoyHttpReportData::GetReportInfo(HttpReportData::ReportInfo* data) const {
-    data->received_bytes = info_.bytesReceived();
-    data->send_bytes = info_.bytesSent();
-    data->duration = 
-      std::chrono::duration_cast<std::chrono::nanoseconds>(info_.duration());
+class HttpReportData : public ::istio::mixer_control::HttpReportData {
+ public:
+  HttpReportData(const HeaderMap& headers, const AccessLog::RequestInfo& info)
+      : headers_(headers), info_(info) {}
 
-    if (info.responseCode().valid()) {
-      data->response_code = info.responseCode().value();
-    }
-  }
-  
-  
+  std::map<std::string, std::string> GetResponseHeaders() const override;
+
+  void GetReportInfo(
+      ::istio::mixer_control::HttpReportData::ReportInfo* data) const override;
+
+ private:
+  const HeaderMap& headers_;
+  const AccessLog::RequestInfo& info_;
+}
+
 }  // namespace Mixer
 }  // namespace Http
 }  // namespace Envoy

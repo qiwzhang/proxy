@@ -22,6 +22,8 @@
 #include "envoy/thread_local/thread_local.h"
 #include "server/config/network/http_connection_manager.h"
 #include "src/envoy/mixer/config.h"
+#include "src/envoy/mixer/envoy_http_check_data.h"
+#include "src/envoy/mixer/envoy_http_report_data.h"
 #include "src/envoy/mixer/mixer_control.h"
 #include "src/envoy/mixer/utils.h"
 
@@ -135,7 +137,7 @@ class Instance : public Http::StreamDecoderFilter,
                  public Logger::Loggable<Logger::Id::http> {
  private:
   MixerControl& mixer_control_;
-  std::shared_ptr<HttpRequestData> request_data_;
+  std::unique_ptr<::istio::mixer_control::HttpRequestHandler> handler_;
   istio::mixer_client::CancelFunc cancel_check_;
 
   enum State { NotStarted, Calling, Complete, Responded };
@@ -227,50 +229,19 @@ class Instance : public Http::StreamDecoderFilter,
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
 
     check_mixer_route_flags();
-    if (mixer_check_disabled_ && mixer_report_disabled_) {
-      if (!forward_disabled()) {
-        mixer_control_.ForwardAttributes(
-            headers, GetRouteStringMap(kPrefixForwardAttributes));
-      }
-      return FilterHeadersStatus::Continue;
-    }
 
-    request_data_ = std::make_shared<HttpRequestData>();
-
-    std::string origin_user;
-    Ssl::Connection* ssl =
-        const_cast<Ssl::Connection*>(decoder_callbacks_->connection()->ssl());
-    if (ssl != nullptr) {
-      origin_user = ssl->uriSanPeerCertificate();
-    }
-
-    // Extract attributes from x-istio-attributes header
-    ::istio::mixer::v1::Attributes_StringMap forwarded_attributes;
-    const HeaderEntry* entry = headers.get(Utils::kIstioAttributeHeader);
-    if (entry) {
-      std::string str(entry->value().c_str(), entry->value().size());
-      forwarded_attributes.ParseFromString(Base64::decode(str));
-      headers.remove(Utils::kIstioAttributeHeader);
-    }
-
-    mixer_control_.BuildHttpCheck(request_data_, headers, forwarded_attributes,
-                                  origin_user,
-                                  GetRouteStringMap(kPrefixMixerAttributes),
-                                  decoder_callbacks_->connection());
-
-    if (!forward_disabled()) {
-      mixer_control_.ForwardAttributes(
-          headers, GetRouteStringMap(kPrefixForwardAttributes));
-    }
-
-    if (mixer_check_disabled_) {
-      return FilterHeadersStatus::Continue;
-    }
+    auto checK_data = std::unique_ptr<::istio::mixer_control::HttpCheckData>(
+        new HttpCheckData(headers, decoder_callbacks_->connection()));
+    auto per_route_config = mixer_control_.mixer_config().PerRouteConfig(
+        mixer_check_disabled_, mixer_report_disabled_,
+        GetRouteStringMap(kPrefixMixerAttributes));
+    handler_ = mixer_control_.controller()->CreateHttpRequestHandler(
+        std::move(check_data), std::move(per_route_config));
 
     state_ = Calling;
     initiating_call_ = true;
-    cancel_check_ = mixer_control_.SendCheck(
-        request_data_, &headers,
+    cancel_check_ = handler_->Check(
+        CheckTransport::GetFunc(mixer_control_.cm(), headers),
         [this](const Status& status) { completeCheck(status); });
     initiating_call_ = false;
 
@@ -350,11 +321,10 @@ class Instance : public Http::StreamDecoderFilter,
   virtual void log(const HeaderMap*, const HeaderMap* response_headers,
                    const AccessLog::RequestInfo& request_info) override {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
-    // If decodeHaeders() is not called, not to call Mixer report.
-    if (!request_data_ || mixer_report_disabled_) return;
-    mixer_control_.BuildHttpReport(request_data_, response_headers,
-                                   request_info, check_status_code_);
-    mixer_control_.SendReport(request_data_);
+    if (!handler_) return;
+    auto report_data = std::unique_ptr<::istio::mixer_control::HttpReportData>(
+        new HttpReportData(response_headers, request_info));
+    handler_->Report(std::move(report_data));
   }
 };
 
