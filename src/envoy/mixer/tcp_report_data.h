@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "control/include/tcp_report_data.h"
 #include "common/http/headers.h"
+#include "control/include/tcp_report_data.h"
 #include "envoy/upstream/cluster_manager.h"
 
 namespace Envoy {

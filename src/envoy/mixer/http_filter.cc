@@ -229,8 +229,8 @@ class Instance : public Http::StreamDecoderFilter,
       state_ = Responded;
       int status_code =
           ::istio::mixer_control::utils::StatusHttpCode(status.error_code());
-      Utility::sendLocalReply(*decoder_callbacks_, false,
-                              Code(status_code), status.ToString());
+      Utility::sendLocalReply(*decoder_callbacks_, false, Code(status_code),
+                              status.ToString());
       return;
     }
 

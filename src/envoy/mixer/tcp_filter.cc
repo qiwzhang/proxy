@@ -129,8 +129,9 @@ class TcpInstance : public Network::Filter,
                    filter_callbacks_->connection().localAddress().asString());
 
     auto data = std::unique_ptr<::istio::mixer_control::TcpCheckData>(
-         new TcpCheckData(filter_callbacks_->connection()));
-    handler_ = mixer_control_.controller()->CreateTcpRequestHandler(std::move(data));
+        new TcpCheckData(filter_callbacks_->connection()));
+    handler_ =
+        mixer_control_.controller()->CreateTcpRequestHandler(std::move(data));
 
     if (state_ == State::NotStarted) {
       state_ = State::Calling;

@@ -27,7 +27,7 @@ namespace {
 
 const LowerCaseString kIstioAttributeHeader("x-istio-attributes");
 const LowerCaseString kRefererHeaderKey("referer");
-  
+
 }  // namespace
 
 bool HttpCheckData::ExtractIstioAttributes(std::string* data) {
@@ -77,40 +77,38 @@ bool HttpCheckData::FindRequestHeader(BaseHttpCheckData::HeaderType header_type,
     case BaseHttpCheckData::HEADER_HOST:
       if (headers_.Host()) {
         *value = std::string(headers_.Host()->value().c_str(),
-                             headers_.Host()->value().c_str());
+                             headers_.Host()->value().size());
         return true;
       }
       break;
     case BaseHttpCheckData::HEADER_SCHEME:
       if (headers_.Scheme()) {
         *value = std::string(headers_.Scheme()->value().c_str(),
-                             headers_.Scheme()->value().c_str());
+                             headers_.Scheme()->value().size());
         return true;
       }
       break;
     case BaseHttpCheckData::HEADER_USER_AGENT:
       if (headers_.UserAgent()) {
         *value = std::string(headers_.UserAgent()->value().c_str(),
-                             headers_.UserAgent()->value().c_str());
+                             headers_.UserAgent()->value().size());
         return true;
       }
       break;
     case BaseHttpCheckData::HEADER_METHOD:
       if (headers_.Method()) {
         *value = std::string(headers_.Method()->value().c_str(),
-                             headers_.Method()->value().c_str());
+                             headers_.Method()->value().size());
         return true;
       }
       break;
-    case BaseHttpCheckData::HEADER_REFERER:
-      {
-        const HeaderEntry* referer = headers_.get(kRefererHeaderKey);
-        if (referer) {
-          *value = std::string(referer->value().c_str(), referer->value().size());
-          return true;
-         }
+    case BaseHttpCheckData::HEADER_REFERER: {
+      const HeaderEntry* referer = headers_.get(kRefererHeaderKey);
+      if (referer) {
+        *value = std::string(referer->value().c_str(), referer->value().size());
+        return true;
       }
-      break;
+    } break;
   }
   return false;
 }

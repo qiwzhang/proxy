@@ -85,7 +85,7 @@ void MixerConfig::Load(const Json::Object& json) {
     builder.AddString("quota.name", json.getString(kQuotaName));
   }
   if (json.hasObject(kQuotaAmount)) {
-    builder.AddString("quota.amount", json.getString(kQuotaName));
+    builder.AddInt64("quota.amount", std::stoi(json.getString(kQuotaAmount)));
   }
 }
 
