@@ -178,13 +178,12 @@ class TcpInstance : public Network::Filter,
     if (event == Network::ConnectionEvent::RemoteClose ||
         event == Network::ConnectionEvent::LocalClose) {
       if (state_ != State::Closed && handler_) {
+        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now() - start_time_);
         auto report_data =
             std::unique_ptr<::istio::mixer_control::TcpReportData>(
-                new TcpReportData(
-                    received_bytes_, send_bytes_,
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::system_clock::now() - start_time_),
-                    filter_callbacks_->upstreamHost()));
+                new TcpReportData(received_bytes_, send_bytes_, duration,
+                                  filter_callbacks_->upstreamHost()));
         handler_->Report(std::move(report_data));
       }
       cancelCheck();
