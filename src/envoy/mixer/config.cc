@@ -89,10 +89,10 @@ void MixerConfig::Load(const Json::Object& json) {
   }
 }
 
-std::unique_ptr<MixerControlConfig> MixerConfig::CreatePerRouteConfig(
+void MixerConfig::CreateLegacyConfig(
     bool disable_check, bool disable_report,
-    const std::map<std::string, std::string>& attributes) {
-  std::unique_ptr<MixerControlConfig> config(new MixerControlConfig);
+    const std::map<std::string, std::string>& attributes,
+    MixerControlConfig* config) {
   config->set_enable_mixer_check(!disable_check);
   config->set_enable_mixer_report(!disable_report);
 
@@ -100,7 +100,6 @@ std::unique_ptr<MixerControlConfig> MixerConfig::CreatePerRouteConfig(
   for (const auto& it : attributes) {
     builder.AddIpOrString(it.first, it.second);
   }
-  return config;
 }
 
 }  // namespace Mixer

@@ -22,8 +22,7 @@
 #include "server/config/network/http_connection_manager.h"
 #include "src/envoy/mixer/config.h"
 #include "src/envoy/mixer/mixer_control.h"
-#include "src/envoy/mixer/tcp_check_data.h"
-#include "src/envoy/mixer/tcp_report_data.h"
+#include "src/envoy/mixer/utils.h"
 
 using ::google::protobuf::util::Status;
 using StatusCode = ::google::protobuf::util::error::Code;
@@ -60,6 +59,8 @@ typedef std::shared_ptr<TcpConfig> TcpConfigPtr;
 
 class TcpInstance : public Network::Filter,
                     public Network::ConnectionCallbacks,
+                    public ::istio::mixer_control::TcpCheckData,
+                    public ::istio::mixer_control::TcpReportData,
                     public Logger::Loggable<Logger::Id::filter> {
  private:
   enum class State { NotStarted, Calling, Completed, Closed };
@@ -128,17 +129,13 @@ class TcpInstance : public Network::Filter,
                    filter_callbacks_->connection().remoteAddress().asString(),
                    filter_callbacks_->connection().localAddress().asString());
 
-    auto data = std::unique_ptr<::istio::mixer_control::TcpCheckData>(
-        new TcpCheckData(filter_callbacks_->connection()));
-    handler_ =
-        mixer_control_.controller()->CreateTcpRequestHandler(std::move(data));
-
+    handler_ = mixer_control_.controller()->CreateTcpRequestHandler();
     if (state_ == State::NotStarted) {
       state_ = State::Calling;
       filter_callbacks_->connection().readDisable(true);
       calling_check_ = true;
       cancel_check_ = handler_->Check(
-          [this](const Status& status) { completeCheck(status); });
+          this, [this](const Status& status) { completeCheck(status); });
       calling_check_ = false;
     }
     return state_ == State::Calling ? Network::FilterStatus::StopIteration
@@ -178,13 +175,7 @@ class TcpInstance : public Network::Filter,
     if (event == Network::ConnectionEvent::RemoteClose ||
         event == Network::ConnectionEvent::LocalClose) {
       if (state_ != State::Closed && handler_) {
-        auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now() - start_time_);
-        auto report_data =
-            std::unique_ptr<::istio::mixer_control::TcpReportData>(
-                new TcpReportData(received_bytes_, send_bytes_, duration,
-                                  filter_callbacks_->upstreamHost()));
-        handler_->Report(std::move(report_data));
+        handler_->Report(this);
       }
       cancelCheck();
     }
@@ -192,6 +183,29 @@ class TcpInstance : public Network::Filter,
 
   void onAboveWriteBufferHighWatermark() override {}
   void onBelowWriteBufferLowWatermark() override {}
+
+  bool GetSourceIpPort(std::string* str_ip, int* port) const {
+    return Utils::GetIpPort(
+        filter_callbacks_->connection().remoteAddress().ip(), str_ip, port);
+  }
+  bool GetSourceUser(std::string* user) const {
+    return Utils::GetSourceUser(&filter_callbacks_->connection(), user);
+  }
+  bool GetDestinationIpPort(std::string* str_ip, int* port) const {
+    if (filter_callbacks_->upstreamHost() &&
+        filter_callbacks_->upstreamHost()->address()) {
+      return Utils::GetIpPort(
+          filter_callbacks_->upstreamHost()->address()->ip(), str_ip, port);
+    }
+    return false;
+  }
+  void GetReportInfo(
+      ::istio::mixer_control::TcpReportData::ReportInfo* data) const {
+    data->received_bytes = received_bytes_;
+    data->send_bytes = send_bytes_;
+    data->duration = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now() - start_time_);
+  }
 };
 
 }  // namespace Mixer

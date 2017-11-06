@@ -28,14 +28,17 @@ namespace Mixer {
 
 // A config for mixer filter
 struct MixerConfig {
+  // The mixer filter config.
   ::istio::mixer::v1::config::client::MixerFilterConfig filter_config;
 
   // Load the config from envoy config.
   void Load(const Json::Object& json);
 
-  static std::unique_ptr<::istio::mixer::v1::config::client::MixerControlConfig>
-  CreatePerRouteConfig(bool disable_check, bool disable_report,
-                       const std::map<std::string, std::string>& attributes);
+  // Create per route legacy config.
+  static void CreateLegacyConfig(
+      bool disable_check, bool disable_report,
+      const std::map<std::string, std::string>& attributes,
+      ::istio::mixer::v1::config::client::MixerControlConfig* config);
 };
 
 }  // namespace Mixer
