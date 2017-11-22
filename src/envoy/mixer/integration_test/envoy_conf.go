@@ -16,9 +16,14 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"text/template"
+
+	"github.com/golang/protobuf/jsonpb"
+	mpb "istio.io/api/mixer/v1"
+	mccpb "istio.io/api/mixer/v1/config/client"
 )
 
 const (
@@ -349,4 +354,57 @@ func CreateEnvoyConf(path, conf, flags string, stress, faultInject bool) error {
 		c.FaultFilter = allAbortFaultFilter
 	}
 	return c.write(path)
+}
+
+type FilterMixerConfig struct {
+	V2 map[string]interface{} `json:"v2,omitempty"`
+}
+
+func CreateV2HttpConf() string {
+	v2 := &mccpb.HttpClientConfig{
+		MixerAttributes: &mpb.Attributes{
+			Attributes: map[string]*mpb.Attributes_AttributeValue{
+				"dest.ip":  {Value: &mpb.Attributes_AttributeValue_BytesValue{[]byte("1.2.3.4")}},
+				"dest.uid": {Value: &mpb.Attributes_AttributeValue_StringValue{"dest.uid"}},
+			},
+		},
+		ForwardAttributes: &mpb.Attributes{
+			Attributes: map[string]*mpb.Attributes_AttributeValue{
+				"source.ip":  {Value: &mpb.Attributes_AttributeValue_BytesValue{[]byte("5.6.7.8")}},
+				"source.uid": {Value: &mpb.Attributes_AttributeValue_StringValue{"source.uid"}},
+			},
+		},
+		ServiceConfigs: map[string]*mccpb.ServiceConfig{},
+	}
+	service := ":default"
+	v2.DefaultDestinationService = service
+	v2.ServiceConfigs[service] = &mccpb.ServiceConfig{
+		MixerAttributes: &mpb.Attributes{
+			Attributes: map[string]*mpb.Attributes_AttributeValue{
+				"destination.service": {Value: &mpb.Attributes_AttributeValue_StringValue{service}},
+			},
+		},
+		// TODO per-service HttpApiApsec, QuotaSpec
+																		   	}
+
+	m := jsonpb.Marshaler{}
+	out, err := m.MarshalToString(v2)
+	if err != nil {
+		return ""
+	}
+
+	// Unmarshal from json bytes to go map
+	var data map[string]interface{}
+	err = json.Unmarshal([]byte(out), &data)
+	if err != nil {
+		return ""
+	}
+	filter := &FilterMixerConfig{
+		V2: data,
+	}
+	bytes_out, err := json.MarshalIndent(filter, "", "  ")
+	if err != nil {
+		return ""
+	}
+	return string(bytes_out)
 }
