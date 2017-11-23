@@ -27,24 +27,32 @@ namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-// A config for mixer filter
-struct MixerConfig {
-  // Load the config from envoy config.
-  // it will fill both http_config and tcp_config
+// Config for http filter.
+struct HttpMixerConfig {
+  // Load from envoy filter config in JSON format.
   void Load(const Json::Object& json);
 
   // The Http client config.
   ::istio::mixer::v1::config::client::HttpClientConfig http_config;
-  // The Tcp client config.
-  ::istio::mixer::v1::config::client::TcpClientConfig tcp_config;
   // legacy quota requirment
   std::vector<::istio::quota::Requirement> legacy_quotas;
+  // If true, v2 config is valid.
+  bool has_v2_config;
 
   // Create per route legacy config.
   static void CreateLegacyRouteConfig(
       bool disable_check, bool disable_report,
       const std::map<std::string, std::string>& attributes,
       ::istio::mixer::v1::config::client::ServiceConfig* config);
+};
+
+// Config for tcp filter.
+struct TcpMixerConfig {
+  // Load from envoy filter config in JSON format.
+  void Load(const Json::Object& json);
+
+  // The Tcp client config.
+  ::istio::mixer::v1::config::client::TcpClientConfig tcp_config;
 };
 
 }  // namespace Mixer
