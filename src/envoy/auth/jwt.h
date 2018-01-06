@@ -28,8 +28,14 @@ namespace Http {
 namespace Auth {
 
 enum class Status {
-  OK,
+  OK = 0,
 
+  // Authorization header value doesn't have Bearer prefix.
+  BEARER_PREFIX_MISMATCH,
+
+    // Token expired.
+    JWT_EXPIRED,
+    
   // Given JWT is not in the form of Header.Payload.Signature
   JWT_BAD_FORMAT,
 
