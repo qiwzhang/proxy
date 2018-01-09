@@ -52,7 +52,7 @@ class JwtAuthControl : public Logger::Loggable<Logger::Id::http> {
   const JwtAuthConfig &config_;
 
   struct IssuerData {
-    IssuerInfo  info;
+    const IssuerInfo&  info;
     std::unique_ptr<Pubkeys> pkey;
     std::chrono::system_clock::time_point create_time;
   }

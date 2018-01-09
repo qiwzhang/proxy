@@ -53,6 +53,9 @@ struct IssuerInfo {
   // 0 means never expired.
   int64_t pubkey_cache_expiration_sec{};
 
+  // Validate the config, if fails, return non-empty error string.
+  std::string Validate() const;
+
   // specified audiences from config.
   std::set<std::string> audiences;
 

@@ -38,6 +38,24 @@ namespace Auth {
     const int64_t kPubKeyCacheExpirationSec = 600;
   }  // namespace
 
+
+  std::string IssuerInfo::Validate() const {
+    if (!pkey_value.empty()) {
+      auto pkey = Pubkeys::CreateFrom(pkey_value, pkey_type);
+      if (pkey->GetStatus() != Status::OK) {
+	return std::string("Public key invalid value: ") + pkey_value;
+      }
+    } else {
+      if (uri == "") {
+	return "Public key missing uri";
+      }
+      if (cluster == "") {
+	return "Public key missing cluster";
+      }
+    }
+    return "";
+  }
+  
 bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
                                    IssuerInfo *issuer) {
   // Check "name"
@@ -85,25 +103,13 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
   // Check "uri" and "cluster"
   issuer->uri = json_pubkey->getString("uri", "");
   issuer->cluster = json_pubkey->getString("cluster", "");
-  if (issuer->uri == "") {
-    // Public key not found
-    ENVOY_LOG(error, "IssuerInfo [name = {}]: Public key uri missing",
-              issuer->name);
-    return false;
-  }
-  if (issuer->cluster == "") {
-    // Public key not found
-    ENVOY_LOG(error, "IssuerInfo [name = {}]: Public key cluster missing",
-              issuer->name);
-    return false;
-  }
 
   // For fetched public key.
   issuer->pubkey_cache_expiration_sec =
     json_pubkey->getInteger("pubkey_cache_expiration_sec", kPubKeyCacheExpirationSec);
   return true;
 }
-
+  
 JwtAuthConfig::JwtAuthConfig(std::vector<IssuerInfo> &&issuers)
     : issuers_(std::move(issuers)) {
   user_info_type_ = UserInfoType::kPayloadBase64Url;
@@ -137,7 +143,12 @@ JwtAuthConfig::JwtAuthConfig(const Json::Object &config) {
   for (auto issuer_json : issuer_jsons) {
     IssuerInfo issuer;
     if (LoadIssuer(issuer_json, &issuer)) {
-      issuers_.push_back(issuer);
+      std::string err = issuer.Validate();
+      if (err.empty()) {
+	issuers_.push_back(issuer);
+      } else {
+	ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}", issuer.name, err);
+      }
     }
   }
 }

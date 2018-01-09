@@ -43,6 +43,14 @@ namespace Auth {
 				 Server::Configuration::FactoryContext &context)
     : config_(config), cm_(context.context.clusterManager()) {
 
+    for (const auto& issuer : config.issuers()) {
+      auto data = issuer_maps_[issuer.name];
+      
+      data.info = issuer;
+      if (!issuer.pkey_value.empty()) {
+	data.pkey = Pubkeys::CreateFrom(issuer.pkey_value, issuer.pkey_type);
+      }
+    }
   }
 
   void JwtAuthControl::Verify(HeaderMap& headers, DoneFunc on_done) {
@@ -73,9 +81,38 @@ std::chrono::system_clock::now().time_since_epoch())
       on_done(Status::JWT_EXPIRED);
       return;
     }
+
     
+    auto it = issuer_maps_.find(jwt.iss());
+    if (it == issuer_maps_.end()) {
+      on_done(Status::NOT_ISSUER_CONFIGED);
+      return;
+    }
+    auto& issuer = it->second;
+    if (issuer.pkey && !issuer.pKeyCacheExpired()) {
+      Auth::Verifier v;
+      if (v.Verify(jwt, *issuer->pkey)) {
+	headers.addReferenceKey(AuthorizedHeaderKey(), jwt.PayloadStrBase64Url());
+
+	// Remove JWT from headers.
+	headers.remove(kAuthorizationHeaderKey);
+	on_done(Status::OK);
+	return;
+      } else {
+	one_done(v.GetStatus());
+	return;
+      }
+	
+    }
+
+    const std::string& issuer_name = issuer.name;
+    FetchPubkey(issuer.uri, issuer.cluser, [issuer_name](bool ok, const std::string& body) {
+	OnFetchPubkeyDone(issuer_name, ok, body);
+      });
   }
-    
+
+  void JwtAuthControl::HttpRequest(issuer.uri, issuer.cluser, [issuer_name](bool ok, const std::string& body) {
+  
 
 }  // namespace Auth
 }  // namespace Http
