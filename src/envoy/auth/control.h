@@ -32,6 +32,7 @@ namespace Envoy {
 namespace Http {
 namespace Auth {
 
+
 // Auth control object to handle the token verification flow. It has:
 // * token cache and public key cache
 // * Know how to make remote call to fetch public keys
@@ -44,9 +45,12 @@ class JwtAuthControl : public Logger::Loggable<Logger::Id::http> {
                 Server::Configuration::FactoryContext &context);
 
   using DoneFunc = std::function<void(const Status& status)>;
-  void Verify(HeaderMap& headers, DoneFunc func);
+  using CancelFunc = std::function<void()>;
+  CancelFunc Verify(HeaderMap& headers, DoneFunc on_done);
 
  private:
+  using HttpDoneFunc = std::function<void(bool ok, const std::string& body)>;
+  CancelFunc SendHttpRequest(const std::string& url, const std::string& cluster, HttpDoneFunc http_done);
   // Need to make async client call.
   Upstream::ClusterManager &cm_;
   const JwtAuthConfig &config_;
