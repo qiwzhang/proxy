@@ -14,21 +14,9 @@
  */
 
 #include "config.h"
+#include "control.H"
 
-#include "common/filesystem/filesystem_impl.h"
-#include "common/json/json_loader.h"
-#include "envoy/json/json_object.h"
-#include "envoy/upstream/cluster_manager.h"
-
-#include "rapidjson/document.h"
-
-#include <algorithm>
 #include <chrono>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace Envoy {
 namespace Http {
@@ -55,8 +43,39 @@ std::string IssuerInfo::Validate() const {
   return "";
 }
 
-bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
-                                   IssuerInfo *issuer) {
+JwtAuthConfig::JwtAuthConfig(std::vector<IssuerInfo>&& issuers)
+    : issuers_(std::move(issuers)) {
+  ENVOY_LOG(debug, "JwtAuthConfig: {}", __func__);
+}
+
+JwtAuthConfig::JwtAuthConfig(const Json::Object& config) {
+  ENVOY_LOG(debug, "JwtAuthConfig: {}", __func__);
+
+  // Load the issuers
+  std::vector<Json::ObjectSharedPtr> issuer_jsons;
+  try {
+    issuer_jsons = config.getObjectArray("issuers");
+  } catch (...) {
+    ENVOY_LOG(error, "JwtAuthConfig: issuers should be array type");
+    return;
+  }
+
+  for (auto issuer_json : issuer_jsons) {
+    IssuerInfo issuer;
+    if (LoadIssuer(issuer_json, &issuer)) {
+      std::string err = issuer.Validate();
+      if (err.empty()) {
+        issuers_.push_back(issuer);
+      } else {
+        ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}",
+                  issuer.name, err);
+      }
+    }
+  }
+}
+
+bool JwtAuthConfig::LoadIssuerInfo(const Json::Object& json,
+                                   IssuerInfo* issuer) {
   // Check "name"
   issuer->name = json.getString("name", "");
   if (issuer->name == "") {
@@ -107,50 +126,6 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
   issuer->pubkey_cache_expiration_sec = json_pubkey->getInteger(
       "pubkey_cache_expiration_sec", kPubKeyCacheExpirationSec);
   return true;
-}
-
-JwtAuthConfig::JwtAuthConfig(std::vector<IssuerInfo> &&issuers)
-    : issuers_(std::move(issuers)) {
-  user_info_type_ = UserInfoType::kPayloadBase64Url;
-}
-
-/*
- * TODO: add test for config loading
- */
-JwtAuthConfig::JwtAuthConfig(const Json::Object &config) {
-  ENVOY_LOG(debug, "JwtAuthConfig: {}", __func__);
-
-  std::string user_info_type_str =
-      config.getString("userinfo_type", "payload_base64url");
-  if (user_info_type_str == "payload") {
-    user_info_type_ = UserInfoType::kPayload;
-  } else if (user_info_type_str == "header_payload_base64url") {
-    user_info_type_ = UserInfoType::kHeaderPayloadBase64Url;
-  } else {
-    user_info_type_ = UserInfoType::kPayloadBase64Url;
-  }
-
-  // Load the issuers
-  std::vector<Json::ObjectSharedPtr> issuer_jsons;
-  try {
-    issuer_jsons = config.getObjectArray("issuers");
-  } catch (...) {
-    ENVOY_LOG(error, "JwtAuthConfig: issuers should be array type");
-    return;
-  }
-
-  for (auto issuer_json : issuer_jsons) {
-    IssuerInfo issuer;
-    if (LoadIssuer(issuer_json, &issuer)) {
-      std::string err = issuer.Validate();
-      if (err.empty()) {
-        issuers_.push_back(issuer);
-      } else {
-        ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}",
-                  issuer.name, err);
-      }
-    }
-  }
 }
 
 }  // namespace Auth

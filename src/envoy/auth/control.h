@@ -79,6 +79,23 @@ class JwtAuthControl : public Logger::Loggable<Logger::Id::http> {
   std::unordered_map<std::string, IssuerItem> issuer_map_;
 };
 
+
+// The object to use auth config to create per-thread auth control.
+ class JwtAuthControlFactory {
+ public:
+   JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
+			 Server::Configuration::FactoryContext &context);
+   
+  // Get per-thread auth_control.
+  JwtAuthControl &auth_control() { return tls_->getTyped<JwtAuthControl>(); }
+
+ private:
+  // The auth config.
+  std::unique_ptr<JwtAuthConfig> config_;
+  // Thread local slot to store per-thread auth_control
+  ThreadLocal::SlotPtr tls_;
+ };
+
 }  // namespace Auth
 }  // namespace Http
 }  // namespace Envoy

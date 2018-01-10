@@ -65,6 +65,10 @@ struct IssuerInfo {
   bool IsAudienceAllowed(const std::string &aud) {
     return audiences.empty() || audiences.find(aud) != audiences.end();
   }
+
+  // Validate the issuer config.
+  // Return error message if invalid, otherwise return empty string.
+  std::string Validate() const;
 };
 
 // A config for Jwt auth filter
@@ -73,19 +77,12 @@ class JwtAuthConfig : public Logger::Loggable<Logger::Id::http> {
   // Load the config from envoy config.
   // It will abort when "issuers" is missing or bad-formatted.
   JwtAuthConfig(const Json::Object &config);
+
   // Constructed by IssuerInfo directly.
   JwtAuthConfig(std::vector<IssuerInfo> &&issuers);
 
-  // It specify which information will be included in the HTTP header of an
-  // authenticated request.
-  enum UserInfoType {
-    kPayload,                // Payload JSON
-    kPayloadBase64Url,       // base64url-encoded Payload JSON
-    kHeaderPayloadBase64Url  // JWT with signature
-  };
-  UserInfoType user_info_type_;
-
  private:
+  // Load one issuer config.
   bool LoadIssuerInfo(const Json::Object &json, IssuerInfo *issuer);
 
   // Each element corresponds to an issuer

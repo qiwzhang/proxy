@@ -77,22 +77,25 @@ const std::set<std::string> RequestHeaderExclusives = {
 // Set of headers excluded from response.headers attribute.
 const std::set<std::string> ResponseHeaderExclusives = {};
 
-std::shared_ptr<Auth::IssuerInfo> CreateIssuer(const JWT& jwt) {
-  std::vector<std::string> audiences;
+bool CreateIssuer(const JWT& jwt, Auth::IssuerInfo* issuer) {
   for (const auto& audience : jwt.audiences()) {
-    audiences.push_back(audience);
+    issuer->audiences.push_back(audience);
   }
-  return std::make_shared<Auth::IssuerInfo>(
-      jwt.issuer(), jwt.jwks_uri(), jwt.jwks_uri_envoy_cluster(),
-      Auth::Pubkeys::JWKS, std::move(audiences));
+  issuer->name = jwt.issuer();
+  isuer->pkey_type = Auth::Pubkeys::JWKS;
+  issuer->uri = jwt.jwks_uri();
+  issuer->cluster = jwt.jwks_uri_envoy_cluster();
+
+  return isser->Validate() == "";
 }
 
 void CreateAuthIssuers(
     const HttpMixerConfig& config,
-    std::vector<std::shared_ptr<Auth::IssuerInfo>>* issuers) {
+    std::vector<Auth::IssuerInfo>* issuers) {
   for (const auto& it : config.http_config.service_configs()) {
     if (it.second.has_end_user_authn_spec()) {
       for (const auto& jwt : it.second.end_user_authn_spec().jwts()) {
+	Auth::IssuerInfo issuer
         issuers->push_back(CreateIssuer(jwt));
       }
     }

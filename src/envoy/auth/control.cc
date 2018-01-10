@@ -262,6 +262,17 @@ IssuerItem* JwtAuthControl::LookupIssuer(const std::string& name) {
   return &it->second;
 }
 
+JwtAuthControlFactory::JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
+					     Server::Configuration::FactoryContext& context) :
+  config_(std::move(config)), tls_(context.threadLocal().allocateSlot()) {
+  const JwtAuthConfig& auth_config = *config_;
+  tls_->set([&auth_config, &context](Event::Dispatcher& dispatcher)
+	    -> ThreadLocal::ThreadLocalObjectSharedPtr {
+	      return ThreadLocal::ThreadLocalObjectSharedPtr(
+							     new JwtAuthControl(auth_config, context));
+	    });
+}
+  
 }  // namespace Auth
 }  // namespace Http
 }  // namespace Envoy

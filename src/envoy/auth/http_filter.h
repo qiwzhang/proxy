@@ -16,6 +16,7 @@
 #pragma once
 
 #include "config.h"
+#include "control.h"
 
 #include "common/common/logger.h"
 #include "server/config/network/http_connection_manager.h"
@@ -30,7 +31,7 @@ namespace Http {
 class JwtVerificationFilter : public StreamDecoderFilter,
                               public Logger::Loggable<Logger::Id::http> {
  public:
-  JwtVerificationFilter(std::shared_ptr<Auth::JwtAuthConfig> config);
+  JwtVerificationFilter(std::shared_ptr<Auth::JwtAuthControlFactory> control_factory);
   ~JwtVerificationFilter();
 
   // Http::StreamFilterBase
@@ -43,33 +44,14 @@ class JwtVerificationFilter : public StreamDecoderFilter,
   void setDecoderFilterCallbacks(
       StreamDecoderFilterCallbacks& callbacks) override;
 
-  const LowerCaseString kAuthorizationHeaderKey =
-      LowerCaseString("Authorization");
-  const std::string kAuthorizationHeaderTokenPrefix = "Bearer ";
-  static const LowerCaseString& AuthorizedHeaderKey();
-
  private:
   StreamDecoderFilterCallbacks* decoder_callbacks_;
-  std::shared_ptr<Auth::JwtAuthConfig> config_;
+  Auth::JwtAuthControl& auth_control_;
+  Auth::CancelFunc cancel_check_;
 
   enum State { Init, Calling, Responded, Complete };
   State state_ = Init;
   bool stopped_ = false;
-  std::function<void(void)> cancel_verification_;
-
-  // Key: name of issuer the public key of which is being fetched
-  // Value: (IssuerInfo object with that name, AsyncClientCallbacks object to
-  // make the request for public key)
-  std::map<std::string,
-           std::pair<std::shared_ptr<Auth::IssuerInfo>,
-                     std::unique_ptr<Auth::AsyncClientCallbacks> > >
-      calling_issuers_;
-
-  void ReceivePubkey(HeaderMap& headers, std::string issuer_name, bool succeed,
-                     const std::string& pubkey);
-  void LoadPubkeys(HeaderMap& headers);
-  std::string Verify(HeaderMap& headers);
-  void CompleteVerification(HeaderMap& headers);
 };
 
 }  // Http
