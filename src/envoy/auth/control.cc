@@ -15,230 +15,252 @@
 
 #include "control.h"
 
-#include "envoy/upstream/cluster_manager.h"
-
-#include "rapidjson/document.h"
-
-#include <algorithm>
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <vector>
+#include "common/http/message_impl.h"
+#include "envoy/http/async_client.h"
 
 namespace Envoy {
 namespace Http {
 namespace Auth {
-  namespace {
-    const LowerCaseString kAuthorizationHeaderKey("Authorization");
+namespace {
 
-    const LowerCaseString kAuthorizedHeaderKey("sec-istio-auth-userinfo");
-    
-    const std::string kBearerPrefix = "Bearer ";
+// The authorization HTTP header.
+const LowerCaseString kAuthorizationHeaderKey("authorization");
 
-    void ExtractUriHostPath(const std::string &uri, std::string* host, std::string* path) {
-      // Example:
-      // uri  = "https://example.com/certs"
-      // pos  :          ^
-      // pos1 :                     ^
-      // host = "example.com"
-      // path = "/certs"
-      auto pos = uri.find("://");
-      pos = pos == std::string::npos ? 0 : pos + 3;  // Start position of host
-      auto pos1 = uri.find("/", pos);
-      if (pos1 == std::string::npos) pos1 = uri.length();
-      *host = uri.substr(pos, pos1 - pos);
-      *path = "/" + uri.substr(pos1 + 1);
-    }
-    
-    // Callback class for AsyncClient.
-    class AsyncClientCallbacks : public AsyncClient::Callbacks,
-				 public Logger::Loggable<Logger::Id::http> {
-    public:
-      AsyncClientCallbacks(Upstream::ClusterManager &cm, const std::string &uri, const std::string &cluster, HttpDoneFunc cb)
-	: cm_(cm), uri_(uri), cluster_(cluster), cb_(cb) {
-	std::string host, path;
-	ExtractUrlHostPath(uri, &host, &path);
-	
-	MessagePtr message(new RequestMessageImpl());
-	message->headers().insertMethod().value().setReference(
-							       Http::Headers::get().MethodValues.Get);
-	message->headers().insertPath().value(path);
-	message->headers().insertHost().value(host);
+// The autorization bearer prefix.
+const std::string kBearerPrefix = "Bearer ";
 
-	request_ = cm_.httpAsyncClientForCluster(cluster_)
-	  .send(std::move(message), *this, Optional<std::chrono::milliseconds>());
-      }
-      // AsyncClient::Callbacks
-      void onSuccess(MessagePtr &&response) {
-	std::string status = response->headers().Status()->value().c_str();
-	if (status == "200") {
-	  ENVOY_LOG(debug, "AsyncClientCallbacks [cluster = {}]: success",
-		    cluster_);
-	  std::string body;
-	  if (response->body()) {
-	    auto len = response->body()->length();
-	    body = std::string(static_cast<char *>(response->body()->linearize(len)),
-			       len);
-	  } else {
-	    ENVOY_LOG(debug, "AsyncClientCallbacks [cluster = {}]: body is null",
-		      cluster_);
-	  }
-	  cb_(true, body);
-	} else {
-	  ENVOY_LOG(debug,
-		    "AsyncClientCallbacks [cluster = {}]: response status code {}",
-		    cluster_, status);
-	  cb_(false, "");
-	}
-	delete this;
-      }
-      void onFailure(AsyncClient::FailureReason) {
-	ENVOY_LOG(debug, "AsyncClientCallbacks [cluster = {}]: failed",
-		  cluster_->name());
-        cb_(false, "");
-	delete this;
-      }
+// The HTTP header to pass verified token payload.
+const LowerCaseString kAuthorizedHeaderKey("sec-istio-auth-userinfo");
 
-      void Cancel() {
-	request_->cancel();
-	delete this;
-      }
+// Extract host and path from a URI
+void ExtractUriHostPath(const std::string& uri, std::string* host,
+                        std::string* path) {
+  // Example:
+  // uri  = "https://example.com/certs"
+  // pos  :          ^
+  // pos1 :                     ^
+  // host = "example.com"
+  // path = "/certs"
+  auto pos = uri.find("://");
+  pos = pos == std::string::npos ? 0 : pos + 3;  // Start position of host
+  auto pos1 = uri.find("/", pos);
+  if (pos1 == std::string::npos) pos1 = uri.length();
+  *host = uri.substr(pos, pos1 - pos);
+  *path = "/" + uri.substr(pos1 + 1);
+}
 
-    private:
-      Upstream::ClusterManager &cm_;
-      const std::string& uri_;
-      const std::string& cluster_;
-      HttpDoneFunc cb_;
-      AsyncClient::Request *request_;
-    };
-  }  // namespace
+// Callback class for AsyncClient.
+// It is used by Envoy to make remote HTTP call.
+class AsyncClientCallbacks : public AsyncClient::Callbacks,
+                             public Logger::Loggable<Logger::Id::http> {
+ public:
+  AsyncClientCallbacks(Upstream::ClusterManager& cm, const std::string& uri,
+                       const std::string& cluster, HttpDoneFunc cb)
+      : uri_(uri), cb_(cb) {
+    std::string host, path;
+    ExtractUrlHostPath(uri, &host, &path);
 
+    MessagePtr message(new RequestMessageImpl());
+    message->headers().insertMethod().value().setReference(
+        Http::Headers::get().MethodValues.Get);
+    message->headers().insertPath().value(path);
+    message->headers().insertHost().value(host);
 
-  // This is per-request auth object.
-  class AuthRequest : public Logger::Loggable<Logger::Id::http> {
-  public:
-    AuthRequest(JwtAuthControl* auth_control,
-		HeaderMap& headers,
-		DoneFunc on_done) :
-      auth_control_(auth_control), headers_(headers), on_done_(on_done) {}
-
-    CancelFunc Verify() {
-    }
-    
-  private:
-    JwtAuthControl* auth_control_;
-    HeaderMap& headers_;
-    DoneFunc on_done_:
-    std::unique_ptr<Auth::Jwt> jwt_;
-  };
-
-  JwtAuthControl::JwtAuthControl(const JwtAuthConfig &config,
-				 Server::Configuration::FactoryContext &context)
-    : config_(config), cm_(context.context.clusterManager()) {
-
-    for (const auto& issuer : config.issuers()) {
-      auto data = issuer_maps_[issuer.name];
-      
-      data.info = issuer;
-      if (!issuer.pkey_value.empty()) {
-	data.pkey = Pubkeys::CreateFrom(issuer.pkey_value, issuer.pkey_type);
-      }
-    }
+    request_ = cm.httpAsyncClientForCluster(cluster).send(
+        std::move(message), *this, Optional<std::chrono::milliseconds>());
   }
 
-  CancelFunc JwtAuthControl::Verify(HeaderMap& headers, DoneFunc on_done) {
-    auto request = std::make_shared<AuthRequest>(this, headers, on_done);
-    return request->Verify();
-  }
-
-  Cancel JwtAuthControl::HttpRequest(const std::string& uri, const std::string& cluser, HttpDoneFunc http_done) {
-    auto transport = new AsyncClientCallbacks(cm_, uri, cluster, http_done);
-    return [transport]() { transport->Cancel(); };
-  }
-
-
-  IssuerData* JwtAuthControl::GetIssuer(const std::string& name) {
-    auto it = issuer_maps_.find(name);
-    if (it == issuer_maps_.end()) {
-      return nullptr;
+  // AsyncClient::Callbacks
+  void onSuccess(MessagePtr&& response) {
+    std::string status = response->headers().Status()->value().c_str();
+    if (status == "200") {
+      ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: success",
+                uri_);
+      std::string body;
+      if (response->body()) {
+        auto len = response->body()->length();
+        body = std::string(static_cast<char*>(response->body()->linearize(len)),
+                           len);
+      } else {
+        ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: body is empty",
+                  uri_);
+      }
+      cb_(true, body);
+    } else {
+      ENVOY_LOG(debug,
+                "AsyncClientCallbacks [uri = {}]: response status code {}",
+                uri_, status);
+      cb_(false, "");
     }
-    return &it->second;
+    delete this;
   }
-
   
-  CancelFunc AuthRequest::DoneWithStatus(Status status) {
-    on_done_(status);
-    return nullptr;
+  void onFailure(AsyncClient::FailureReason) {
+    ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: failed",
+              uri_);
+    cb_(false, "");
+    delete this;
   }
 
-  CancelFunc AuthRequest::Verify() {
+  void Cancel() {
+    request_->cancel();
+    delete this;
+  }
+
+ private:
+  const std::string& uri_;
+  HttpDoneFunc cb_;
+  AsyncClient::Request* request_;
+};
+
+// This is per-request auth object.
+class AuthRequest : public Logger::Loggable<Logger::Id::http>,
+                    public std::enable_shared_from_this<AuthRequest> {
+ public:
+  AuthRequest(JwtAuthControl* auth_control, HeaderMap& headers,
+              DoneFunc on_done)
+      : auth_control_(auth_control), headers_(headers), on_done_(on_done) {}
+
+  // Verify a JWT token.
+  CancelFunc Verify() {
     const HeaderEntry* entry = headers_.get(kAuthorizationHeaderKey);
     if (!entry) {
       return DoneWithStatus(Status::OK);
     }
 
+    // Extract token from header.
     const HeaderString& value = entry->value();
     if (value.length() <= kBearerPrefix.length() ||
-	value.compare(0, kBearerPrefix.length(), kBearerPrefix) != 0) {
+        value.compare(0, kBearerPrefix.length(), kBearerPrefix) != 0) {
       return DoneWithStatus(Status::BEARER_PREFIX_MISMATCH);
     }
-    
+
+    // Parse JWT token
     jwt_.reset(new Auth::Jwt(value.c_str() + kBearerPrefix.length()));
     if (jwt_->GetStatus() != Status::OK) {
       return DoneWithStatus(jwt_->GetStatus());
     }
 
     // Check "exp" claim.
-    auto unix_timestamp = std::chrono::duration_cast<std::chrono::seconds>(
-std::chrono::system_clock::now().time_since_epoch())
-      .count();
+    auto unix_timestamp =
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count();
     if (jwt_->Exp() < unix_timestamp) {
       return DoneWithStatus(Status::JWT_EXPIRED);
     }
 
-    auto issuer = auth_control_->GetIssuer(jwt_->iss());
+    // Check the issuer is configured or not.
+    auto issuer = auth_control_->LookupIssuer(jwt_->iss());
     if (!issuer) {
-      return DoneWithStatus(Status::NOT_ISSUER_CONFIGED);
+      return DoneWithStatus(Status::JWT_UNKNOWN_ISSUER);
+    }
+
+    // Check if audience is allowed
+    if (!issuer->config.IsAudienceAllowed(jwt_->Aud())) {
+      return DoneWithStatus(Status::AUDIENCE_NOT_ALLOWED);
     }
     
-    if (issuer->pkey && !issuer->pKeyCacheExpired()) {
+    if (issuer->pkey && !issuer->Expired()) {
       return Verify(*issuer->pkey);
     }
 
     auth pThis = GetPtr();
-    return auth_control_->SendHttpRequest(issuer->uri, issuer->cluser,
-			   [pThis](bool ok, const std::string& body) {
-			    pThis->OnFetchPubkeyDone(ok, body);
-      });
+    return auth_control_->SendHttpRequest(
+        issuer->config.uri, issuer->config.cluser, [pThis](bool ok, const std::string& body) {
+          pThis->OnFetchPubkeyDone(ok, body);
+        });
   }
 
-  CancelFunc AuthRequest::Verify(const Auth::Pubkeys& pkey) {
-      Auth::Verifier v;
-      if (!v.Verify(*jwt_, pkey)) {
-	return DoneWithStatus(v.GetStatus());
-      }
+ private:
+  // Get the shared_ptr from this object.
+  std::shared_ptr<AuthRequest> GetPtr() { return shared_from_this(); }
 
-      headers_.addReferenceKey(AuthorizedHeaderKey(), jwt_->PayloadStrBase64Url());
-
-      // Remove JWT from headers.
-      headers_.remove(kAuthorizationHeaderKey);
-      return DoneWithStatus(Status::OK);
+  // Handle the verification done.
+  CancelFunc DoneWithStatus(Status status) {
+    on_done_(status);
+    return nullptr;
   }
 
-  
-  CancelFunc AuthRequest::OnFetchPubkeyDone(bool ok, const std::string& pkey) {
+  // Verify with a specific public key.
+  CancelFunc Verify(const Auth::Pubkeys& pkey) {
+    Auth::Verifier v;
+    if (!v.Verify(*jwt_, pkey)) {
+      return DoneWithStatus(v.GetStatus());
+    }
+
+    headers_.addReferenceKey(kAuthorizedHeaderKey,
+                             jwt_->PayloadStrBase64Url());
+
+    // Remove JWT from headers.
+    headers_.remove(kAuthorizationHeaderKey);
+    return DoneWithStatus(Status::OK);
+  }
+
+  // Handle the public key fetch done event.
+  CancelFunc OnFetchPubkeyDone(bool ok, const std::string& pkey) {
     if (!ok) {
       return DoneWithStatus(Status::FAILED_FETCH_PUBKEY);
     }
 
-    auto issuer = auth_control_->GetIssuer(jwt_->iss());;
-    issuer->pkey = Pubkeys::CreateFrom(pkey, issuer->info.pkey_type);
-    issuer->create_time = std::chrono::system_clock::now();
+    auto issuer = auth_control_->LookupIssuer(jwt_->iss());
+    issuer->pkey = Pubkeys::CreateFrom(pkey, issuer->config.pkey_type);
+    if (issuer->pKey.GetStatus() != Status::OK) {
+      auto status = issuer->pKey.GetStatus();
+      issuer->pkey.reset();
+      return DoneWithStatus(status);
+    }
+    
+    if (issuer->config.pubkey_cache_expiration_sec > 0) {
+      issuer->expiration_time =
+	std::chrono::system_clock::now() + std::chrono::seconds(issuer->config.pubkey_cache_expiration_sec);
+    }
     return Verify(*issuer->pkey);
   }
-  
+
+  // The parent control object with public key cache.
+  JwtAuthControl* auth_control_;
+  // The headers
+  HeaderMap& headers_;
+  // The on_done function.
+  DoneFunc on_done_;
+  // The JWT object.
+  std::unique_ptr<Auth::Jwt> jwt_;
+};
+
+}  // namespace
+
+JwtAuthControl::JwtAuthControl(const JwtAuthConfig& config,
+                               Server::Configuration::FactoryContext& context)
+  : cm_(context.context.clusterManager()) {
+  for (const auto& issuer : config.issuers()) {
+    auto item = issuer_maps_[issuer.name];
+    item.config = issuer;
+    if (!issuer.pkey_value.empty()) {
+      item.pkey = Pubkeys::CreateFrom(issuer.pkey_value, issuer.pkey_type);
+    }
+  }
+}
+
+CancelFunc JwtAuthControl::Verify(HeaderMap& headers, DoneFunc on_done) {
+  auto request = std::make_shared<AuthRequest>(this, headers, on_done);
+  return request->Verify();
+}
+
+Cancel JwtAuthControl::SendHttpRequest(const std::string& uri,
+				       const std::string& cluser,
+				       HttpDoneFunc http_done) {
+  auto transport = new AsyncClientCallbacks(cm_, uri, cluster, http_done);
+  return [transport]() { transport->Cancel(); };
+}
+
+IssuerItem* JwtAuthControl::LookupIssuer(const std::string& name) {
+  auto it = issuer_maps_.find(name);
+  if (it == issuer_maps_.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
 
 }  // namespace Auth
 }  // namespace Http

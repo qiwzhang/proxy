@@ -33,29 +33,28 @@
 namespace Envoy {
 namespace Http {
 namespace Auth {
-  namespace {
-    // Default public cache cache duration: 5 minutes.
-    const int64_t kPubKeyCacheExpirationSec = 600;
-  }  // namespace
+namespace {
+// Default public cache cache duration: 5 minutes.
+const int64_t kPubKeyCacheExpirationSec = 600;
+}  // namespace
 
-
-  std::string IssuerInfo::Validate() const {
-    if (!pkey_value.empty()) {
-      auto pkey = Pubkeys::CreateFrom(pkey_value, pkey_type);
-      if (pkey->GetStatus() != Status::OK) {
-	return std::string("Public key invalid value: ") + pkey_value;
-      }
-    } else {
-      if (uri == "") {
-	return "Public key missing uri";
-      }
-      if (cluster == "") {
-	return "Public key missing cluster";
-      }
+std::string IssuerInfo::Validate() const {
+  if (!pkey_value.empty()) {
+    auto pkey = Pubkeys::CreateFrom(pkey_value, pkey_type);
+    if (pkey->GetStatus() != Status::OK) {
+      return std::string("Public key invalid value: ") + pkey_value;
     }
-    return "";
+  } else {
+    if (uri == "") {
+      return "Public key missing uri";
+    }
+    if (cluster == "") {
+      return "Public key missing cluster";
+    }
   }
-  
+  return "";
+}
+
 bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
                                    IssuerInfo *issuer) {
   // Check "name"
@@ -105,11 +104,11 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object &json,
   issuer->cluster = json_pubkey->getString("cluster", "");
 
   // For fetched public key.
-  issuer->pubkey_cache_expiration_sec =
-    json_pubkey->getInteger("pubkey_cache_expiration_sec", kPubKeyCacheExpirationSec);
+  issuer->pubkey_cache_expiration_sec = json_pubkey->getInteger(
+      "pubkey_cache_expiration_sec", kPubKeyCacheExpirationSec);
   return true;
 }
-  
+
 JwtAuthConfig::JwtAuthConfig(std::vector<IssuerInfo> &&issuers)
     : issuers_(std::move(issuers)) {
   user_info_type_ = UserInfoType::kPayloadBase64Url;
@@ -145,9 +144,10 @@ JwtAuthConfig::JwtAuthConfig(const Json::Object &config) {
     if (LoadIssuer(issuer_json, &issuer)) {
       std::string err = issuer.Validate();
       if (err.empty()) {
-	issuers_.push_back(issuer);
+        issuers_.push_back(issuer);
       } else {
-	ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}", issuer.name, err);
+        ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}",
+                  issuer.name, err);
       }
     }
   }
