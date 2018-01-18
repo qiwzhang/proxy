@@ -109,7 +109,6 @@ class Config {
   Upstream::ClusterManager& cm_;
   HttpMixerConfig mixer_config_;
   ThreadLocal::SlotPtr tls_;
-  std::shared_ptr<Auth::JwtAuthConfig> auth_config_;
 
  public:
   Config(const Json::Object& config,
@@ -126,19 +125,20 @@ class Config {
                                              random, scope));
                   });
 
-    std::vector<std::shared_ptr<Auth::IssuerInfo>> issuers;
-    CreateAuthIssuers(mixer_config_, &issuers);
-    if (issuers.size() > 0) {
-      auth_config_ =
-          std::make_shared<Auth::JwtAuthConfig>(std::move(issuers), context);
-    }
   }
 
   HttpMixerControl& mixer_control() {
     return tls_->getTyped<HttpMixerControl>();
   }
 
-  std::shared_ptr<Auth::JwtAuthConfig> auth_config() { return auth_config_; }
+  std::unique_ptr<Auth::JwtAuthConfig> auth_config() {
+    std::vector<Auth::IssuerInfo> issuers;
+    CreateAuthIssuers(mixer_config_, &issuers);
+    if (issuers.size() > 0) {
+      return std::unique_ptr<Auth::JwtAuthConfig>(new Auth::JwtAuthConfig(std::move(issuers)));
+    }
+    return std::unique_ptr<Auth::JwtAuthConfig>();
+  }
 };
 
 typedef std::shared_ptr<Config> ConfigPtr;
@@ -570,11 +570,18 @@ class MixerConfigFactory : public NamedHttpFilterConfigFactory {
                                           FactoryContext& context) override {
     Http::Mixer::ConfigPtr mixer_config(
         new Http::Mixer::Config(config, context));
+    std::shared<Http::Auth::JwtAuthControlFactory> auth_factory;
+    auth auth_config = mixer_config->auth_config();
+    if (auth_config) {
+      auto_factory = std::make_shared<Http::Auth::JwtAuthControlFactory>(
+								       std::move(auth_config),
+								       context);
+    }
     return
-        [mixer_config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-          if (mixer_config->auth_config()) {
+      [mixer_config, auth_factory](Http::FilterChainFactoryCallbacks& callbacks) -> void {
+          if (auth_factory) {
             callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
-                new Http::JwtVerificationFilter(mixer_config->auth_config())});
+                new Http::JwtVerificationFilter(auth_factory)});
           }
           std::shared_ptr<Http::Mixer::Instance> instance =
               std::make_shared<Http::Mixer::Instance>(mixer_config);

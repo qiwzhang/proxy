@@ -46,6 +46,38 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "http_request_lib",
+    srcs = [
+        "http_request.cc",
+    ],
+    hdrs = [
+        "http_request.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/exe:envoy_common_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "control_lib",
+    srcs = [
+        "control.cc",
+    ],
+    hdrs = [
+        "control.h",
+        "pubkey_cache.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":config_lib",
+        ":http_request_lib",
+        ":jwt_lib",
+        "@envoy//source/exe:envoy_common_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "http_filter_lib",
     srcs = [
         "http_filter.cc",
@@ -55,8 +87,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
-        ":jwt_lib",
-        ":config_lib",
+        ":control_lib",
         "@envoy//source/exe:envoy_common_lib",
     ],
 )

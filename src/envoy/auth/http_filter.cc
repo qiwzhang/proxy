@@ -49,11 +49,6 @@ void JwtVerificationFilter::onDestroy() {
 FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
                                                          bool) {
   ENVOY_LOG(debug, "Called JwtVerificationFilter : {}", __func__);
-  const HeaderEntry* entry = headers.get(kAuthorizationHeaderKey);
-  if (!entry) {
-    return FilterHeadersStatus::Continue;
-  }
-
   state_ = Calling;
   stopped_ = false;
 
@@ -68,7 +63,7 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
   return FilterHeadersStatus::StopIteration;
 }
 
-  void JwtVerificationFilter::completeCheck(const Auth::Status& status) {
+void JwtVerificationFilter::completeCheck(const Auth::Status& status) {
     ENVOY_LOG(debug, "Called JwtVerificationFilter : check complete {}",
 	      status);
     // This stream has been reset, abort the callback.
@@ -88,7 +83,7 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
     if (stopped_) {
       decoder_callbacks_->continueDecoding();
     }
-  }
+}
   
 FilterDataStatus JwtVerificationFilter::decodeData(Buffer::Instance&, bool) {
   ENVOY_LOG(debug, "Called JwtVerificationFilter : {}", __func__);
