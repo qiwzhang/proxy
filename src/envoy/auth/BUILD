@@ -60,12 +60,12 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "control_lib",
+    name = "controller_lib",
     srcs = [
-        "control.cc",
+        "controller.cc",
     ],
     hdrs = [
-        "control.h",
+        "controller.h",
         "pubkey_cache.h",
     ],
     repository = "@envoy",
@@ -87,7 +87,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
-        ":control_lib",
+        ":controller_lib",
         "@envoy//source/exe:envoy_common_lib",
     ],
 )

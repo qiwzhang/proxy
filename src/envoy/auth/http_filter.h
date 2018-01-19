@@ -16,7 +16,7 @@
 #pragma once
 
 #include "config.h"
-#include "control.h"
+#include "controller.h"
 
 #include "common/common/logger.h"
 #include "server/config/network/http_connection_manager.h"
@@ -31,7 +31,7 @@ namespace Http {
 class JwtVerificationFilter : public StreamDecoderFilter,
                               public Logger::Loggable<Logger::Id::http> {
  public:
-  JwtVerificationFilter(std::shared_ptr<Auth::JwtAuthControlFactory> control_factory);
+  JwtVerificationFilter(std::shared_ptr<Auth::ControlFactory> control_factory);
   ~JwtVerificationFilter();
 
   // Http::StreamFilterBase
@@ -46,7 +46,7 @@ class JwtVerificationFilter : public StreamDecoderFilter,
 
  private:
   StreamDecoderFilterCallbacks* decoder_callbacks_;
-  Auth::JwtAuthControl& auth_control_;
+  Auth::Controller& controller_;
   Auth::CancelFunc cancel_check_;
 
   enum State { Init, Calling, Responded, Complete };

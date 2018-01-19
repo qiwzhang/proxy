@@ -14,7 +14,7 @@
  */
 
 #include "http_filter.h"
-#include "control.h"
+#include "controller.h"
 
 #include "envoy/registry/registry.h"
 
@@ -27,9 +27,9 @@ class JwtVerificationFilterConfig : public NamedHttpFilterConfigFactory {
   HttpFilterFactoryCb createFilterFactory(const Json::Object& config,
                                           const std::string&,
                                           FactoryContext& context) override {
-    std::unique_ptr<Http::Auth::JwtAuthConfig> auth_config(
-							   new Http::Auth::JwtAuthConfig(config));
-    auto control_factory = std::make_shared<Http::Auth::JwtAuthControlFactory>(
+    std::unique_ptr<Http::Auth::Config> auth_config(
+						    new Http::Auth::Config(config));
+    auto control_factory = std::make_shared<Http::Auth::ControlFactory>(
 								       std::move(auth_config),
 								       context);
     return [control_factory](Http::FilterChainFactoryCallbacks& callbacks) -> void {

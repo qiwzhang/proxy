@@ -83,7 +83,7 @@ void FillIssuerInfo(const JWT& jwt, Auth::IssuerInfo* issuer) {
     issuer->audiences.push_back(audience);
   }
   issuer->name = jwt.issuer();
-  isuer->pkey_type = Auth::Pubkeys::JWKS;
+  isuer->pubkey_type = Auth::Pubkeys::JWKS;
   issuer->uri = jwt.jwks_uri();
   issuer->cluster = jwt.jwks_uri_envoy_cluster();
 }

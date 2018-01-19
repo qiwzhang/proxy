@@ -29,8 +29,8 @@ namespace Envoy {
 namespace Http {
 
 JwtVerificationFilter::JwtVerificationFilter(
-					     std::shared_ptr<Auth::JwtAuthControlFactory> control_factory))
-  : auth_control_(control_factory->auth_control()) {}
+					     std::shared_ptr<Auth::ControllerFactory> controller_factory))
+  : controller_(controller_factory->controller()) {}
 
 JwtVerificationFilter::~JwtVerificationFilter() {}
 
@@ -52,8 +52,8 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
   state_ = Calling;
   stopped_ = false;
 
-  cancel_check_ = auth_control->Verify(headers,
-				       [this](const Auth::Status& status) { completeCheck(status); });
+  cancel_check_ = controller_->Verify(
+      headers, [this](const Auth::Status& status) { completeCheck(status); });
 
   if (state_ == Complete) {
     return FilterHeadersStatus::Continue;
@@ -64,27 +64,27 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
 }
 
 void JwtVerificationFilter::completeCheck(const Auth::Status& status) {
-    ENVOY_LOG(debug, "Called JwtVerificationFilter : check complete {}",
-	      status);
-    // This stream has been reset, abort the callback.
-    if (state_ == Responded) {
-      return;
-    }
-    if (status != Auth::Status::OK) {
-      state_ = Responded;
-      // verification failed
-      Code code = Code(401);  // Unauthorized
-      // return failure reason as message body
-      Utility::sendLocalReply(*decoder_callbacks_, false, code, Auth::StatusToString(status));
-      return;
-    }
+  ENVOY_LOG(debug, "Called JwtVerificationFilter : check complete {}", status);
+  // This stream has been reset, abort the callback.
+  if (state_ == Responded) {
+    return;
+  }
+  if (status != Auth::Status::OK) {
+    state_ = Responded;
+    // verification failed
+    Code code = Code(401);  // Unauthorized
+    // return failure reason as message body
+    Utility::sendLocalReply(*decoder_callbacks_, false, code,
+                            Auth::StatusToString(status));
+    return;
+  }
 
-    state_ = Complete;
-    if (stopped_) {
-      decoder_callbacks_->continueDecoding();
-    }
+  state_ = Complete;
+  if (stopped_) {
+    decoder_callbacks_->continueDecoding();
+  }
 }
-  
+
 FilterDataStatus JwtVerificationFilter::decodeData(Buffer::Instance&, bool) {
   ENVOY_LOG(debug, "Called JwtVerificationFilter : {}", __func__);
   if (state_ == Calling) {

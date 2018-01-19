@@ -26,10 +26,10 @@ const int64_t kPubKeyCacheExpirationSec = 600;
 }  // namespace
 
 std::string IssuerInfo::Validate() const {
-  if (!pkey_value.empty()) {
-    auto pkey = Pubkeys::CreateFrom(pkey_value, pkey_type);
-    if (pkey->GetStatus() != Status::OK) {
-      return std::string("Public key invalid value: ") + pkey_value;
+  if (!pubkey_value.empty()) {
+    auto pubkey = Pubkeys::CreateFrom(pubkey_value, pubkey_type);
+    if (pubkey->GetStatus() != Status::OK) {
+      return std::string("Public key invalid value: ") + pubkey_value;
     }
   } else {
     if (uri == "") {
@@ -42,20 +42,20 @@ std::string IssuerInfo::Validate() const {
   return "";
 }
 
-JwtAuthConfig::JwtAuthConfig(std::vector<IssuerInfo>&& issuers)
+Config::Config(std::vector<IssuerInfo>&& issuers)
     : issuers_(std::move(issuers)) {
-  ENVOY_LOG(debug, "JwtAuthConfig: {}", __func__);
+  ENVOY_LOG(debug, "Config: {}", __func__);
 }
 
-JwtAuthConfig::JwtAuthConfig(const Json::Object& config) {
-  ENVOY_LOG(debug, "JwtAuthConfig: {}", __func__);
+Config::Config(const Json::Object& config) {
+  ENVOY_LOG(debug, "Config: {}", __func__);
 
   // Load the issuers
   std::vector<Json::ObjectSharedPtr> issuer_jsons;
   try {
     issuer_jsons = config.getObjectArray("issuers");
   } catch (...) {
-    ENVOY_LOG(error, "JwtAuthConfig: issuers should be array type");
+    ENVOY_LOG(error, "Config: issuers should be array type");
     return;
   }
 
@@ -66,14 +66,14 @@ JwtAuthConfig::JwtAuthConfig(const Json::Object& config) {
       if (err.empty()) {
         issuers_.push_back(issuer);
       } else {
-        ENVOY_LOG(error, "JwtAuthConfig: invalid issuer config for {}: {}",
+        ENVOY_LOG(error, "Config: invalid issuer config for {}: {}",
                   issuer.name, err);
       }
     }
   }
 }
 
-bool JwtAuthConfig::LoadIssuerInfo(const Json::Object& json,
+bool Config::LoadIssuerInfo(const Json::Object& json,
                                    IssuerInfo* issuer) {
   // Check "name"
   issuer->name = json.getString("name", "");
@@ -100,11 +100,11 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object& json,
     return false;
   }
   // Check "type"
-  std::string pkey_type_str = json_pubkey->getString("type", "");
-  if (pkey_type_str == "pem") {
-    issuer->pkey_type = Pubkeys::PEM;
-  } else if (pkey_type_str == "jwks") {
-    issuer->pkey_type = Pubkeys::JWKS;
+  std::string pubkey_type_str = json_pubkey->getString("type", "");
+  if (pubkey_type_str == "pem") {
+    issuer->pubkey_type = Pubkeys::PEM;
+  } else if (pubkey_type_str == "jwks") {
+    issuer->pubkey_type = Pubkeys::JWKS;
   } else {
     ENVOY_LOG(error,
               "IssuerInfo [name = {}]: Public key type missing or invalid",
@@ -112,9 +112,9 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object& json,
     return false;
   }
   // Check "value"
-  issuer->pkey_value = json_pubkey->getString("value", "");
-  // If pkey_value is not empty, not need for "uri" and "cluster"
-  if (issuer->pkey_value != "") {
+  issuer->pubkey_value = json_pubkey->getString("value", "");
+  // If pubkey_value is not empty, not need for "uri" and "cluster"
+  if (issuer->pubkey_value != "") {
     return true;
   }
 

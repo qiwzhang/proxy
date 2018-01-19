@@ -32,10 +32,10 @@ struct IssuerInfo {
   std::string cluster;  // Envoy cluster name for public key
 
   std::string name;         // e.g. "https://accounts.example.com"
-  Pubkeys::Type pkey_type;  // Format of public key.
+  Pubkeys::Type pubkey_type;  // Format of public key.
 
   // public key value.
-  std::string pkey_value;
+  std::string pubkey_value;
 
   // Time to expire a cached public key (sec).
   // 0 means never expired.
@@ -47,7 +47,7 @@ struct IssuerInfo {
   // Check if an audience is allowed.
   // If audiences is an empty array or not specified, any "aud" claim will be
   // accepted.
-  bool IsAudienceAllowed(const std::string &aud) {
+  bool IsAudienceAllowed(const std::string &aud) const {
     return audiences.empty() || audiences.find(aud) != audiences.end();
   }
 
@@ -57,14 +57,17 @@ struct IssuerInfo {
 };
 
 // A config for Jwt auth filter
-class JwtAuthConfig : public Logger::Loggable<Logger::Id::http> {
+class Config : public Logger::Loggable<Logger::Id::http> {
  public:
   // Load the config from envoy config.
   // It will abort when "issuers" is missing or bad-formatted.
-  JwtAuthConfig(const Json::Object &config);
+  Config(const Json::Object &config);
 
   // Constructed by IssuerInfo directly.
-  JwtAuthConfig(std::vector<IssuerInfo> &&issuers);
+  Config(std::vector<IssuerInfo> &&issuers);
+
+  // Get the list of issuers.
+  const std::vector<IssuerInfo>& issuers() const { return issuers_; }
 
  private:
   // Load one issuer config from JSON object.

@@ -13,21 +13,25 @@
  * limitations under the License.
  */
 
-#ifndef AUTH_CONTROL_H
-#define AUTH_CONTROL_H
+#ifndef AUTH_CONTROLLER_H
+#define AUTH_CONTROLLER_H
 
 #include "config.h"
+#include "http_request.h"
 #include "pubkey_cache.h"
+
+#include "envoy/server/filter_config.h"
+#include "envoy/thread_local/thread_local.h"
 
 namespace Envoy {
 namespace Http {
 namespace Auth {
 
 // Auth control object to handle the token verification flow.
-class JwtAuthControl {
+class Controller : public ThreadLocal::ThreadLocalObject {
  public:
   // Load the config from envoy config.
-  JwtAuthControl(const JwtAuthConfig& config, HttpGetFunc http_get_func);
+  Controller(const Config& config, HttpGetFunc http_get_func);
 
   // The callback function after JWT verification is done.
   using DoneFunc = std::function<void(const Status& status)>;
@@ -47,17 +51,17 @@ class JwtAuthControl {
 };
 
 // The factory object to create per-thread auth control.
-class JwtAuthControlFactory {
+class ControllerFactory {
  public:
-  JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
-                        Server::Configuration::FactoryContext& context);
+  ControllerFactory(std::unique_ptr<Config> config,
+                    Server::Configuration::FactoryContext& context);
 
   // Get per-thread auth_control.
-  JwtAuthControl& auth_control() { return tls_->getTyped<JwtAuthControl>(); }
+  Controller& controller() { return tls_->getTyped<Controller>(); }
 
  private:
   // The auth config.
-  std::unique_ptr<JwtAuthConfig> config_;
+  std::unique_ptr<Config> config_;
   // Thread local slot to store per-thread auth_control
   ThreadLocal::SlotPtr tls_;
 };
@@ -66,4 +70,4 @@ class JwtAuthControlFactory {
 }  // namespace Http
 }  // namespace Envoy
 
-#endif  // AUTH_CONTROL_H
+#endif  // AUTH_CONTROLLER_H
