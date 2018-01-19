@@ -1,4 +1,4 @@
-B/* Copyright 2017 Istio Authors. All Rights Reserved.
+/* Copyright 2017 Istio Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@ B/* Copyright 2017 Istio Authors. All Rights Reserved.
 #ifndef HTTP_REQUEST_H
 #define HTTP_REQUEST_H
 
+#include <functional>
+
+#include "envoy/upstream/cluster_manager.h"
+
 namespace Envoy {
 namespace Http {
 namespace Auth {
@@ -27,16 +31,15 @@ using CancelFunc = std::function<void()>;
 
 // The HTTP Get call interface.
 // It is used by JwtAuthControl class, and implemented by http_request_impl.
-using HttpGetFunc = std::function<CancelFunc(const std::string& url, const std::string& cluster,
-					      HttpDoneFunc http_done)>;
-
+using HttpGetFunc =
+    std::function<CancelFunc(const std::string& url, const std::string& cluster,
+                             HttpDoneFunc http_done)>;
 
 // Create a HTTPGetFunc by using Envoy async client.
 HttpGetFunc NewHttpGetFuncByAsyncClient(Upstream::ClusterManager& cm);
- 
+
 }  // namespace Auth
 }  // namespace Http
 }  // namespace Envoy
 
 #endif  // HTTP_REQUEST_H
- 

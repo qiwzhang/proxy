@@ -15,6 +15,7 @@
 
 #include "http_request.h"
 
+#include "common/common/logger.h"
 #include "common/http/message_impl.h"
 #include "envoy/http/async_client.h"
 
@@ -49,7 +50,7 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
                        const std::string& cluster, HttpDoneFunc cb)
       : uri_(uri), cb_(cb) {
     std::string host, path;
-    ExtractUrlHostPath(uri, &host, &path);
+    ExtractUriHostPath(uri, &host, &path);
 
     MessagePtr message(new RequestMessageImpl());
     message->headers().insertMethod().value().setReference(
@@ -65,8 +66,7 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
   void onSuccess(MessagePtr&& response) {
     std::string status = response->headers().Status()->value().c_str();
     if (status == "200") {
-      ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: success",
-                uri_);
+      ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: success", uri_);
       std::string body;
       if (response->body()) {
         auto len = response->body()->length();
@@ -85,10 +85,9 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
     }
     delete this;
   }
-  
+
   void onFailure(AsyncClient::FailureReason) {
-    ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: failed",
-              uri_);
+    ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: failed", uri_);
     cb_(false, "");
     delete this;
   }
@@ -107,12 +106,11 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
 }  // namespace
 
 HttpGetFunc NewHttpGetFuncByAsyncClient(Upstream::ClusterManager& cm) {
-    return [&cm](const std::string& uri,
-		 const std::string& cluser,
-		 HttpDoneFunc http_done) -> CancelFunc {
-      auto transport = new AsyncClientCallbacks(cm, uri, cluster, http_done);
-      return [transport]() { transport->Cancel(); };
-    };
+  return [&cm](const std::string& uri, const std::string& cluster,
+               HttpDoneFunc http_done) -> CancelFunc {
+    auto transport = new AsyncClientCallbacks(cm, uri, cluster, http_done);
+    return [transport]() { transport->Cancel(); };
+  };
 }
 
 }  // namespace Auth

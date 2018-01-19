@@ -31,7 +31,7 @@ class JwtAuthControl {
 
   // The callback function after JWT verification is done.
   using DoneFunc = std::function<void(const Status& status)>;
-  
+
   // Verify JWT. on_done function will be called after verification is done.
   // If there is pending remote call, a CancelFunc will be returned
   // It can be used to cancel the remote call. When remote call is canceled
@@ -49,11 +49,11 @@ class JwtAuthControl {
 // The factory object to create per-thread auth control.
 class JwtAuthControlFactory {
  public:
-   JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
-			 Server::Configuration::FactoryContext &context);
-   
+  JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
+                        Server::Configuration::FactoryContext& context);
+
   // Get per-thread auth_control.
-  JwtAuthControl &auth_control() { return tls_->getTyped<JwtAuthControl>(); }
+  JwtAuthControl& auth_control() { return tls_->getTyped<JwtAuthControl>(); }
 
  private:
   // The auth config.

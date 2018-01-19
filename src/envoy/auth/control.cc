@@ -33,9 +33,12 @@ const LowerCaseString kAuthorizedHeaderKey("sec-istio-auth-userinfo");
 class AuthRequest : public Logger::Loggable<Logger::Id::http>,
                     public std::enable_shared_from_this<AuthRequest> {
  public:
-  AuthRequest(HttpGetFunc http_get_func, PubkeyCache& pubkey_cache, HeaderMap& headers,
-              DoneFunc on_done)
-    : http_get_func_(http_get_func), pubkey_cache_(pubkey_cache), headers_(headers), on_done_(on_done) {}
+  AuthRequest(HttpGetFunc http_get_func, PubkeyCache& pubkey_cache,
+              HeaderMap& headers, DoneFunc on_done)
+      : http_get_func_(http_get_func),
+        pubkey_cache_(pubkey_cache),
+        headers_(headers),
+        on_done_(on_done) {}
 
   // Verify a JWT token.
   CancelFunc Verify() {
@@ -76,17 +79,16 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
     if (!issuer->config().IsAudienceAllowed(jwt_->Aud())) {
       return DoneWithStatus(Status::AUDIENCE_NOT_ALLOWED);
     }
-    
+
     if (issuer->pkey() && !issuer->Expired()) {
       return Verify(*issuer->pkey());
     }
 
     auth pThis = GetPtr();
-    return http_get_func_(issuer->config().uri,
-			  issuer->config().cluser,
-			  [pThis](bool ok, const std::string& body) {
-          pThis->OnFetchPubkeyDone(ok, body);
-        });
+    return http_get_func_(issuer->config().uri, issuer->config().cluser,
+                          [pThis](bool ok, const std::string& body) {
+                            pThis->OnFetchPubkeyDone(ok, body);
+                          });
   }
 
  private:
@@ -106,8 +108,7 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
       return DoneWithStatus(v.GetStatus());
     }
 
-    headers_.addReferenceKey(kAuthorizedHeaderKey,
-                             jwt_->PayloadStrBase64Url());
+    headers_.addReferenceKey(kAuthorizedHeaderKey, jwt_->PayloadStrBase64Url());
 
     // Remove JWT from headers.
     headers_.remove(kAuthorizationHeaderKey);
@@ -125,7 +126,7 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
     if (status != Status::OK) {
       return DoneWithStatus(status);
     }
-    
+
     return Verify(*issuer->pkey());
   }
 
@@ -145,25 +146,28 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
 
 JwtAuthControl::JwtAuthControl(const JwtAuthConfig& config,
                                HttpGetFunc http_get_func)
-  : http_get_func_(http_get_func), pubkey_cache_(config) {}
+    : http_get_func_(http_get_func), pubkey_cache_(config) {}
 
 CancelFunc JwtAuthControl::Verify(HeaderMap& headers, DoneFunc on_done) {
-  auto request = std::make_shared<AuthRequest>(http_get_func_, pubkey_cache_, headers, on_done);
+  auto request = std::make_shared<AuthRequest>(http_get_func_, pubkey_cache_,
+                                               headers, on_done);
   return request->Verify();
 }
 
-JwtAuthControlFactory::JwtAuthControlFactory(std::unique_ptr<JwtAuthConfig> config,
-					     Server::Configuration::FactoryContext& context) :
-  config_(std::move(config)), tls_(context.threadLocal().allocateSlot()) {
+JwtAuthControlFactory::JwtAuthControlFactory(
+    std::unique_ptr<JwtAuthConfig> config,
+    Server::Configuration::FactoryContext& context)
+    : config_(std::move(config)), tls_(context.threadLocal().allocateSlot()) {
   const JwtAuthConfig& auth_config = *config_;
-  tls_->set([&auth_config, &context](Event::Dispatcher& dispatcher)
-	    -> ThreadLocal::ThreadLocalObjectSharedPtr {
-	      return ThreadLocal::ThreadLocalObjectSharedPtr(
-							     new JwtAuthControl(auth_config,
-										NewHttpRequestByAsyncClient(context.context.clusterManager())));
-	    });
+  tls_->set(
+      [&auth_config, &context](Event::Dispatcher& dispatcher)
+          -> ThreadLocal::ThreadLocalObjectSharedPtr {
+            return ThreadLocal::ThreadLocalObjectSharedPtr(new JwtAuthControl(
+                auth_config,
+                NewHttpRequestByAsyncClient(context.context.clusterManager())));
+          });
 }
-  
+
 }  // namespace Auth
 }  // namespace Http
 }  // namespace Envoy
