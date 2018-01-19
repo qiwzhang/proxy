@@ -14,7 +14,6 @@
  */
 
 #include "config.h"
-#include "control.H"
 
 #include <chrono>
 
@@ -62,7 +61,7 @@ JwtAuthConfig::JwtAuthConfig(const Json::Object& config) {
 
   for (auto issuer_json : issuer_jsons) {
     IssuerInfo issuer;
-    if (LoadIssuer(issuer_json, &issuer)) {
+    if (LoadIssuerInfo(*issuer_json, &issuer)) {
       std::string err = issuer.Validate();
       if (err.empty()) {
         issuers_.push_back(issuer);
@@ -114,7 +113,8 @@ bool JwtAuthConfig::LoadIssuerInfo(const Json::Object& json,
   }
   // Check "value"
   issuer->pkey_value = json_pubkey->getString("value", "");
-  if (value != "") {
+  // If pkey_value is not empty, not need for "uri" and "cluster"
+  if (issuer->pkey_value != "") {
     return true;
   }
 

@@ -63,7 +63,7 @@ enum class Status {
 
   // Issuer is not configured.
   JWT_UNKNOWN_ISSUER,
-    
+
   // JWK is an invalid JSON.
   JWK_PARSE_ERROR,
 
@@ -94,8 +94,8 @@ enum class Status {
   // Audience is not allowed.
   AUDIENCE_NOT_ALLOWED,
 
-    // Failed to fetch public key
-    FAILED_FETCH_PUBKEY,
+  // Failed to fetch public key
+  FAILED_FETCH_PUBKEY,
 };
 
 std::string StatusToString(Status status);

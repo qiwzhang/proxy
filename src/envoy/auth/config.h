@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-#ifndef PROXY_CONFIG_H
-#define PROXY_CONFIG_H
+#ifndef AUTH_CONFIG_H
+#define AUTH_CONFIG_H
 
+#include "jwt.h"
 #include "common/common/logger.h"
 #include "envoy/json/json_object.h"
-#include "jwt.h"
 
 #include <vector>
 
@@ -28,18 +28,6 @@ namespace Auth {
 
 // Struct to hold an issuer's config.
 struct IssuerInfo {
-  // Default one.
-  IssuerInfo() {}
-  // Allow default construct.
-  IssuerInfo(const std::string &name, const std::string &uri,
-             const std::string &cluster, Pubkeys::Type pkey_type,
-             std::vector<std::string> &&audiences)
-      : uri(uri),
-        cluster(cluster),
-        name(name),
-        pkey_type(pkey_type),
-        audiences(std::move(audiences)) {}
-
   std::string uri;      // URI for public key
   std::string cluster;  // Envoy cluster name for public key
 
@@ -52,9 +40,6 @@ struct IssuerInfo {
   // Time to expire a cached public key (sec).
   // 0 means never expired.
   int64_t pubkey_cache_expiration_sec{};
-
-  // Validate the config, if fails, return non-empty error string.
-  std::string Validate() const;
 
   // specified audiences from config.
   std::set<std::string> audiences;
@@ -82,7 +67,7 @@ class JwtAuthConfig : public Logger::Loggable<Logger::Id::http> {
   JwtAuthConfig(std::vector<IssuerInfo> &&issuers);
 
  private:
-  // Load one issuer config.
+  // Load one issuer config from JSON object.
   bool LoadIssuerInfo(const Json::Object &json, IssuerInfo *issuer);
 
   // Each element corresponds to an issuer
@@ -93,4 +78,4 @@ class JwtAuthConfig : public Logger::Loggable<Logger::Id::http> {
 }  // namespace Http
 }  // namespace Envoy
 
-#endif  // PROXY_CONFIG_H
+#endif  // AUTH_CONFIG_H

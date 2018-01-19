@@ -77,7 +77,8 @@ const std::set<std::string> RequestHeaderExclusives = {
 // Set of headers excluded from response.headers attribute.
 const std::set<std::string> ResponseHeaderExclusives = {};
 
-bool CreateIssuer(const JWT& jwt, Auth::IssuerInfo* issuer) {
+// Fill IssuerInfo from JWT proto
+void FillIssuerInfo(const JWT& jwt, Auth::IssuerInfo* issuer) {
   for (const auto& audience : jwt.audiences()) {
     issuer->audiences.push_back(audience);
   }
@@ -85,30 +86,33 @@ bool CreateIssuer(const JWT& jwt, Auth::IssuerInfo* issuer) {
   isuer->pkey_type = Auth::Pubkeys::JWKS;
   issuer->uri = jwt.jwks_uri();
   issuer->cluster = jwt.jwks_uri_envoy_cluster();
-
-  return isser->Validate() == "";
-}
-
-void CreateAuthIssuers(
-    const HttpMixerConfig& config,
-    std::vector<Auth::IssuerInfo>* issuers) {
-  for (const auto& it : config.http_config.service_configs()) {
-    if (it.second.has_end_user_authn_spec()) {
-      for (const auto& jwt : it.second.end_user_authn_spec().jwts()) {
-	Auth::IssuerInfo issuer
-        issuers->push_back(CreateIssuer(jwt));
-      }
-    }
-  }
 }
 
 }  // namespace
 
-class Config {
+class Config :  public Logger::Loggable<Logger::Id::http>{
  private:
   Upstream::ClusterManager& cm_;
   HttpMixerConfig mixer_config_;
   ThreadLocal::SlotPtr tls_;
+
+  // Extract Auth config from all service configs
+  void ExtractAuthConfig(std::vector<Auth::IssuerInfo>* issuers) {
+    for (const auto& it : mixer_config_.http_config.service_configs()) {
+      if (it.second.has_end_user_authn_spec()) {
+	for (const auto& jwt : it.second.end_user_authn_spec().jwts()) {
+	  Auth::IssuerInfo issuer;
+	  FillIssuerInfo(jwt, &issuer);
+	  std::string err = issuer.Validate();
+	  if (err.empty()) {
+	    issuers->push_back(issuer);
+	  } else {
+	    ENVOY_LOG(error, "Invalid auth issuer config for {}: {}", issuer.name, err);
+	  }
+	}
+      }
+    }
+  }
 
  public:
   Config(const Json::Object& config,
@@ -133,7 +137,7 @@ class Config {
 
   std::unique_ptr<Auth::JwtAuthConfig> auth_config() {
     std::vector<Auth::IssuerInfo> issuers;
-    CreateAuthIssuers(mixer_config_, &issuers);
+    ExtractAuthConfig(&issuers);
     if (issuers.size() > 0) {
       return std::unique_ptr<Auth::JwtAuthConfig>(new Auth::JwtAuthConfig(std::move(issuers)));
     }
