@@ -21,7 +21,7 @@ namespace Envoy {
 namespace Http {
 namespace Auth {
 namespace {
-// Default public cache cache duration: 5 minutes.
+// Default public key cache cache duration: 5 minutes.
 const int64_t kPubKeyCacheExpirationSec = 600;
 }  // namespace
 
@@ -123,7 +123,7 @@ bool Config::LoadIssuerInfo(const Json::Object& json, IssuerInfo* issuer) {
 
   // For fetched public key.
   issuer->pubkey_cache_expiration_sec = json_pubkey->getInteger(
-      "pubkey_cache_expiration_sec", kPubKeyCacheExpirationSec);
+      "cache_expiration_sec", kPubKeyCacheExpirationSec);
   return true;
 }
 
