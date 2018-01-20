@@ -29,8 +29,8 @@ namespace Envoy {
 namespace Http {
 
 JwtVerificationFilter::JwtVerificationFilter(
-					     std::shared_ptr<Auth::ControllerFactory> controller_factory))
-  : controller_(controller_factory->controller()) {}
+    std::shared_ptr<Auth::ControllerFactory> controller_factory)
+    : controller_(controller_factory->controller()) {}
 
 JwtVerificationFilter::~JwtVerificationFilter() {}
 
@@ -52,7 +52,7 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
   state_ = Calling;
   stopped_ = false;
 
-  cancel_check_ = controller_->Verify(
+  cancel_check_ = controller_.Verify(
       headers, [this](const Auth::Status& status) { completeCheck(status); });
 
   if (state_ == Complete) {
@@ -64,7 +64,8 @@ FilterHeadersStatus JwtVerificationFilter::decodeHeaders(HeaderMap& headers,
 }
 
 void JwtVerificationFilter::completeCheck(const Auth::Status& status) {
-  ENVOY_LOG(debug, "Called JwtVerificationFilter : check complete {}", status);
+  ENVOY_LOG(debug, "Called JwtVerificationFilter : check complete {}",
+            int(status));
   // This stream has been reset, abort the callback.
   if (state_ == Responded) {
     return;

@@ -28,7 +28,7 @@ envoy_cc_binary(
     name = "envoy",
     repository = "@envoy",
     deps = [
-        ":http_filter_config",
+        ":http_filter_factory",
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
 )
@@ -93,8 +93,8 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "http_filter_config",
-    srcs = ["http_filter_config.cc"],
+    name = "http_filter_factory",
+    srcs = ["http_filter_factory.cc"],
     repository = "@envoy",
     deps = [
         ":http_filter_lib",
@@ -110,7 +110,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":http_filter_config",
+        ":http_filter_factory",
         ":jwt_lib",
         "@envoy//test/integration:http_integration_lib",
         "@envoy//test/integration:integration_lib",

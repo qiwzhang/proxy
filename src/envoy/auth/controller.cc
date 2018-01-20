@@ -154,6 +154,10 @@ CancelFunc Controller::Verify(HeaderMap& headers, DoneFunc on_done) {
   return request->Verify();
 }
 
+const LowerCaseString& Controller::AuthorizedHeaderKey() {
+  return kAuthorizedHeaderKey;
+}
+
 ControllerFactory::ControllerFactory(
     std::unique_ptr<Config> config,
     Server::Configuration::FactoryContext& context)

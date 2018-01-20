@@ -15,23 +15,20 @@
 
 #pragma once
 
-#include "config.h"
 #include "controller.h"
 
 #include "common/common/logger.h"
 #include "server/config/network/http_connection_manager.h"
 
-#include <map>
-#include <memory>
-#include <string>
-
 namespace Envoy {
 namespace Http {
 
+// The Envoy filter to process JWT auth.
 class JwtVerificationFilter : public StreamDecoderFilter,
                               public Logger::Loggable<Logger::Id::http> {
  public:
-  JwtVerificationFilter(std::shared_ptr<Auth::ControlFactory> control_factory);
+  JwtVerificationFilter(
+      std::shared_ptr<Auth::ControllerFactory> controller_factory);
   ~JwtVerificationFilter();
 
   // Http::StreamFilterBase
@@ -45,12 +42,20 @@ class JwtVerificationFilter : public StreamDecoderFilter,
       StreamDecoderFilterCallbacks& callbacks) override;
 
  private:
+  // the function to handle verification done event.
+  void completeCheck(const Auth::Status& status);
+
+  // The callback funcion.
   StreamDecoderFilterCallbacks* decoder_callbacks_;
+  // The auth controller object.
   Auth::Controller& controller_;
+  // The cancel function to cancel the remote call.
   Auth::CancelFunc cancel_check_;
 
+  // The state of the request
   enum State { Init, Calling, Responded, Complete };
   State state_ = Init;
+  // Mark if request has been stopped.
   bool stopped_ = false;
 };
 

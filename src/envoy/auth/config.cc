@@ -73,8 +73,7 @@ Config::Config(const Json::Object& config) {
   }
 }
 
-bool Config::LoadIssuerInfo(const Json::Object& json,
-                                   IssuerInfo* issuer) {
+bool Config::LoadIssuerInfo(const Json::Object& json, IssuerInfo* issuer) {
   // Check "name"
   issuer->name = json.getString("name", "");
   if (issuer->name == "") {

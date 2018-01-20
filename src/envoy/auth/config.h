@@ -16,9 +16,9 @@
 #ifndef AUTH_CONFIG_H
 #define AUTH_CONFIG_H
 
-#include "jwt.h"
 #include "common/common/logger.h"
 #include "envoy/json/json_object.h"
+#include "jwt.h"
 
 #include <vector>
 
@@ -31,7 +31,7 @@ struct IssuerInfo {
   std::string uri;      // URI for public key
   std::string cluster;  // Envoy cluster name for public key
 
-  std::string name;         // e.g. "https://accounts.example.com"
+  std::string name;           // e.g. "https://accounts.example.com"
   Pubkeys::Type pubkey_type;  // Format of public key.
 
   // public key value.
@@ -67,7 +67,7 @@ class Config : public Logger::Loggable<Logger::Id::http> {
   Config(std::vector<IssuerInfo> &&issuers);
 
   // Get the list of issuers.
-  const std::vector<IssuerInfo>& issuers() const { return issuers_; }
+  const std::vector<IssuerInfo> &issuers() const { return issuers_; }
 
  private:
   // Load one issuer config from JSON object.

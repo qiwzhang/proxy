@@ -42,6 +42,9 @@ class Controller : public ThreadLocal::ThreadLocalObject {
   // on_done function will not be called.
   CancelFunc Verify(HeaderMap& headers, DoneFunc on_done);
 
+  // The authorized header key.
+  static const LowerCaseString& AuthorizedHeaderKey();
+
  private:
   // The transport function to make remote http get call.
   HttpGetFunc http_get_func_;

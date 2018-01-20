@@ -80,17 +80,21 @@ const std::set<std::string> ResponseHeaderExclusives = {};
 // Fill IssuerInfo from JWT proto
 void FillIssuerInfo(const JWT& jwt, Auth::IssuerInfo* issuer) {
   for (const auto& audience : jwt.audiences()) {
-    issuer->audiences.push_back(audience);
+    issuer->audiences.insert(audience);
   }
   issuer->name = jwt.issuer();
-  isuer->pubkey_type = Auth::Pubkeys::JWKS;
+  issuer->pubkey_type = Auth::Pubkeys::JWKS;
   issuer->uri = jwt.jwks_uri();
   issuer->cluster = jwt.jwks_uri_envoy_cluster();
+  if (jwt.has_public_key_cache_duration()) {
+    issuer->pubkey_cache_expiration_sec =
+        jwt.public_key_cache_duration().seconds();
+  }
 }
 
 }  // namespace
 
-class Config :  public Logger::Loggable<Logger::Id::http>{
+class Config : public Logger::Loggable<Logger::Id::http> {
  private:
   Upstream::ClusterManager& cm_;
   HttpMixerConfig mixer_config_;
@@ -100,16 +104,17 @@ class Config :  public Logger::Loggable<Logger::Id::http>{
   void ExtractAuthConfig(std::vector<Auth::IssuerInfo>* issuers) {
     for (const auto& it : mixer_config_.http_config.service_configs()) {
       if (it.second.has_end_user_authn_spec()) {
-	for (const auto& jwt : it.second.end_user_authn_spec().jwts()) {
-	  Auth::IssuerInfo issuer;
-	  FillIssuerInfo(jwt, &issuer);
-	  std::string err = issuer.Validate();
-	  if (err.empty()) {
-	    issuers->push_back(issuer);
-	  } else {
-	    ENVOY_LOG(error, "Invalid auth issuer config for {}: {}", issuer.name, err);
-	  }
-	}
+        for (const auto& jwt : it.second.end_user_authn_spec().jwts()) {
+          Auth::IssuerInfo issuer;
+          FillIssuerInfo(jwt, &issuer);
+          std::string err = issuer.Validate();
+          if (err.empty()) {
+            issuers->push_back(issuer);
+          } else {
+            ENVOY_LOG(error, "Invalid auth issuer config for {}: {}",
+                      issuer.name, err);
+          }
+        }
       }
     }
   }
@@ -128,20 +133,20 @@ class Config :  public Logger::Loggable<Logger::Id::http>{
                         new HttpMixerControl(mixer_config_, cm_, dispatcher,
                                              random, scope));
                   });
-
   }
 
   HttpMixerControl& mixer_control() {
     return tls_->getTyped<HttpMixerControl>();
   }
 
-  std::unique_ptr<Auth::JwtAuthConfig> auth_config() {
+  std::unique_ptr<Auth::Config> auth_config() {
     std::vector<Auth::IssuerInfo> issuers;
     ExtractAuthConfig(&issuers);
     if (issuers.size() > 0) {
-      return std::unique_ptr<Auth::JwtAuthConfig>(new Auth::JwtAuthConfig(std::move(issuers)));
+      return std::unique_ptr<Auth::Config>(
+          new Auth::Config(std::move(issuers)));
     }
-    return std::unique_ptr<Auth::JwtAuthConfig>();
+    return std::unique_ptr<Auth::Config>();
   }
 };
 
@@ -291,7 +296,7 @@ class CheckData : public HttpCheckData,
   bool GetJWTPayload(
       std::map<std::string, std::string>* payload) const override {
     const HeaderEntry* entry =
-        headers_.get(Http::JwtVerificationFilter::AuthorizedHeaderKey());
+        headers_.get(Auth::Controller::AuthorizedHeaderKey());
     if (!entry) {
       return false;
     }
@@ -300,8 +305,7 @@ class CheckData : public HttpCheckData,
     // Return an empty string if Base64 decode fails.
     if (payload_str.empty()) {
       ENVOY_LOG(error, "Invalid {} header, invalid base64: {}",
-                Http::JwtVerificationFilter::AuthorizedHeaderKey().get(),
-                value);
+                Auth::Controller::AuthorizedHeaderKey().get(), value);
       return false;
     }
     try {
@@ -317,8 +321,7 @@ class CheckData : public HttpCheckData,
           });
     } catch (...) {
       ENVOY_LOG(error, "Invalid {} header, invalid json: {}",
-                Http::JwtVerificationFilter::AuthorizedHeaderKey().get(),
-                payload_str);
+                Auth::Controller::AuthorizedHeaderKey().get(), payload_str);
       return false;
     }
     return true;
@@ -574,25 +577,24 @@ class MixerConfigFactory : public NamedHttpFilterConfigFactory {
                                           FactoryContext& context) override {
     Http::Mixer::ConfigPtr mixer_config(
         new Http::Mixer::Config(config, context));
-    std::shared<Http::Auth::JwtAuthControlFactory> auth_factory;
-    auth auth_config = mixer_config->auth_config();
+    std::shared_ptr<Http::Auth::ControllerFactory> auth_factory;
+    auto auth_config = mixer_config->auth_config();
     if (auth_config) {
-      auto_factory = std::make_shared<Http::Auth::JwtAuthControlFactory>(
-								       std::move(auth_config),
-								       context);
+      auth_factory = std::make_shared<Http::Auth::ControllerFactory>(
+          std::move(auth_config), context);
     }
-    return
-      [mixer_config, auth_factory](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-          if (auth_factory) {
-            callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
-                new Http::JwtVerificationFilter(auth_factory)});
-          }
-          std::shared_ptr<Http::Mixer::Instance> instance =
-              std::make_shared<Http::Mixer::Instance>(mixer_config);
-          callbacks.addStreamDecoderFilter(
-              Http::StreamDecoderFilterSharedPtr(instance));
-          callbacks.addAccessLogHandler(AccessLog::InstanceSharedPtr(instance));
-        };
+    return [mixer_config, auth_factory](
+               Http::FilterChainFactoryCallbacks& callbacks) -> void {
+      if (auth_factory) {
+        callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr{
+            new Http::JwtVerificationFilter(auth_factory)});
+      }
+      std::shared_ptr<Http::Mixer::Instance> instance =
+          std::make_shared<Http::Mixer::Instance>(mixer_config);
+      callbacks.addStreamDecoderFilter(
+          Http::StreamDecoderFilterSharedPtr(instance));
+      callbacks.addAccessLogHandler(AccessLog::InstanceSharedPtr(instance));
+    };
   }
   std::string name() override { return "mixer"; }
 };
