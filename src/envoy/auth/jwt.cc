@@ -40,7 +40,7 @@ std::string StatusToString(Status status) {
       {Status::OK, "OK"},
       {Status::BEARER_PREFIX_MISMATCH,
        "Authorization header value doesn't have Bearer prefix"},
-      {Status::JWT_EXPIRED, "JWT is expired."},
+      {Status::JWT_EXPIRED, "JWT is expired"},
       {Status::JWT_BAD_FORMAT, "JWT_BAD_FORMAT"},
       {Status::JWT_HEADER_PARSE_ERROR, "JWT_HEADER_PARSE_ERROR"},
       {Status::JWT_HEADER_NO_ALG, "JWT_HEADER_NO_ALG"},
@@ -59,7 +59,7 @@ std::string StatusToString(Status status) {
       {Status::PEM_PUBKEY_BAD_BASE64, "PEM_PUBKEY_BAD_BASE64"},
       {Status::PEM_PUBKEY_PARSE_ERROR, "PEM_PUBKEY_PARSE_ERROR"},
       {Status::JWK_PUBKEY_PARSE_ERROR, "JWK_PUBKEY_PARSE_ERROR"},
-      {Status::AUDIENCE_NOT_ALLOWED, "Audience is not allowed"},
+      {Status::AUDIENCE_NOT_ALLOWED, "Audience doesn't match"},
       {Status::FAILED_FETCH_PUBKEY, "Failed to fetch public key"},
   };
   return table[status];
