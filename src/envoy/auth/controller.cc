@@ -21,15 +21,15 @@ namespace Auth {
 namespace {
 
 // The authorization HTTP header.
-const LowerCaseString kAuthorizationHeaderKey("authorization");
+const LowerCaseString kAuthorizationKey("authorization");
 
 // The autorization bearer prefix.
 const std::string kBearerPrefix = "Bearer ";
 
 // The HTTP header to pass verified token payload.
-const LowerCaseString kAuthorizedHeaderKey("sec-istio-auth-userinfo");
+const LowerCaseString kJwtPayloadKey("sec-istio-auth-userinfo");
 
-// This is per-request auth object.
+// The per-request JWT authentication object.
 class AuthRequest : public Logger::Loggable<Logger::Id::http>,
                     public std::enable_shared_from_this<AuthRequest> {
  public:
@@ -42,9 +42,9 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
 
   // Verify a JWT token.
   CancelFunc Verify() {
-    const HeaderEntry* entry = headers_.get(kAuthorizationHeaderKey);
+    const HeaderEntry* entry = headers_.get(kAuthorizationKey);
     if (!entry) {
-      // TODO: excludes some health checking path
+      // TODO: excludes some health checking paths
       return DoneWithStatus(Status::JWT_MISSED);
     }
 
@@ -110,10 +110,10 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
       return DoneWithStatus(v.GetStatus());
     }
 
-    headers_.addReferenceKey(kAuthorizedHeaderKey, jwt_->PayloadStrBase64Url());
+    headers_.addReferenceKey(kJwtPayloadKey, jwt_->PayloadStrBase64Url());
 
     // Remove JWT from headers.
-    headers_.remove(kAuthorizationHeaderKey);
+    headers_.remove(kAuthorizationKey);
     return DoneWithStatus(Status::OK);
   }
 
@@ -136,7 +136,7 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
   HttpGetFunc http_get_func_;
   // The pubkey cache object.
   PubkeyCache& pubkey_cache_;
-  // The headers
+  // The HTTP request headers
   HeaderMap& headers_;
   // The on_done function.
   Controller::DoneFunc on_done_;
@@ -155,9 +155,7 @@ CancelFunc Controller::Verify(HeaderMap& headers, DoneFunc on_done) {
   return request->Verify();
 }
 
-const LowerCaseString& Controller::AuthorizedHeaderKey() {
-  return kAuthorizedHeaderKey;
-}
+const LowerCaseString& Controller::JwtPayloadKey() { return kJwtPayloadKey; }
 
 ControllerFactory::ControllerFactory(
     std::unique_ptr<Config> config,

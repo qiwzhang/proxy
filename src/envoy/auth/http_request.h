@@ -17,7 +17,6 @@
 #define HTTP_REQUEST_H
 
 #include <functional>
-
 #include "envoy/upstream/cluster_manager.h"
 
 namespace Envoy {
@@ -30,7 +29,6 @@ using HttpDoneFunc = std::function<void(bool ok, const std::string& body)>;
 using CancelFunc = std::function<void()>;
 
 // The HTTP Get call interface.
-// It is used by JwtAuthControl class, and implemented by http_request_impl.
 using HttpGetFunc =
     std::function<CancelFunc(const std::string& url, const std::string& cluster,
                              HttpDoneFunc http_done)>;

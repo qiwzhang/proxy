@@ -140,7 +140,7 @@ Format of `<config>`:
 #### issuers (array of object, required)
 
 It specifies the issuers and their public keys.
-You can register multiple issuers. 
+You can register multiple issuers.
 
 
 For each issuer, the following informations are required:
@@ -153,14 +153,14 @@ If it is specified, JWT must have `aud` claim specified in this list.
   `type` and (`value` or (`uri` and `cluster`)) are required.
   - __type__ (string, required): the format of public key. It should be one of {`"jwks"`, `"pem"`}.
   - __value__ (string, optional): string of public key.
-  - __uri__ (string, optional): URI of the public key. Note that in this case you should register the issuer as a cluster (as described below), and specify the name of the cluster.
-  - __cluster__ (string, optional): cluster name of the issuer.
-  - __cache_expiration_sec_ (integer, optional): time in seconds to expire a cached public key. If not specified, default is 600 second.  Static public keys specified in the config will never expire.
+  - __uri__ (string, optional): URI of the public key server.
+  - __cluster__ (string, optional): cluster name of the issuer.  Public key server should be listed in the "clusters" section of the Envoy config. This field refers to its "name" field.
+  - __cache_expiration_sec__ (integer, optional): time in seconds to expire a cached public key. If not specified, default is 600 seconds.  Public keys specified in the config "value" field never expire.
   
 
 ### Clusters
 
-You should specify all public key servers as clusters in Envoy config.
+All public key servers should be listed in the "clusters" section of the Envoy config.  The format of the "url" inside "hosts" section is "tcp://host-name:port".
 
 Example:
 ```

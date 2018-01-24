@@ -112,6 +112,7 @@ const std::string kGoodToken =
     "CNOnL0AjQKe9IGblJrMuouqYYS0zEWwmOVUWUSxQkoLpldQUVefcfjQeGjz8IlvktRa77FYe"
     "xfP590ACPyXrivtsxg";
 
+// Mock Transport object.
 class MockHttpGet {
  public:
   MOCK_METHOD3(HttpGet,
@@ -138,6 +139,29 @@ class ControllerTest : public ::testing::Test {
   std::unique_ptr<Controller> controller_;
   MockHttpGet mock_http_get_;
 };
+
+TEST_F(ControllerTest, TestOkJWT) {
+  EXPECT_CALL(mock_http_get_, HttpGet(_, _, _))
+      .WillOnce(Invoke([](const std::string& url, const std::string& cluster,
+                          HttpDoneFunc http_done) -> CancelFunc {
+        EXPECT_EQ(url, "pubkey_uri");
+        EXPECT_EQ(cluster, "pubkey_cluster");
+        // HTTP get return a good pubkey.
+        http_done(true, kPublicKey);
+        return nullptr;
+      }));
+
+  // Test OK pubkey and its cached
+  for (int i = 0; i < 10; i++) {
+    auto headers = TestHeaderMapImpl{{"Authorization", "Bearer " + kGoodToken}};
+    controller_->Verify(
+        headers, [](const Status& status) { ASSERT_EQ(status, Status::OK); });
+    EXPECT_EQ(headers.get_("sec-istio-auth-userinfo"),
+              "eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoidGVz"
+              "dEBleGFtcGxlLmNvbSIsImF1ZCI6ImV4YW1wbGVfc2VydmljZSIs"
+              "ImV4cCI6MjAwMTAwMTAwMX0");
+  }
+}
 
 TEST_F(ControllerTest, TestMissedJWT) {
   EXPECT_CALL(mock_http_get_, HttpGet(_, _, _)).Times(0);
@@ -233,29 +257,6 @@ TEST_F(ControllerTest, TestInvalidPubkey) {
   controller_->Verify(headers, [](const Status& status) {
     ASSERT_EQ(status, Status::JWK_PARSE_ERROR);
   });
-}
-
-TEST_F(ControllerTest, TestOkJWT) {
-  EXPECT_CALL(mock_http_get_, HttpGet(_, _, _))
-      .WillOnce(Invoke([](const std::string& url, const std::string& cluster,
-                          HttpDoneFunc http_done) -> CancelFunc {
-        EXPECT_EQ(url, "pubkey_uri");
-        EXPECT_EQ(cluster, "pubkey_cluster");
-        // HTTP get return a good pubkey.
-        http_done(true, kPublicKey);
-        return nullptr;
-      }));
-
-  // Test OK pubkey and its cached
-  for (int i = 0; i < 10; i++) {
-    auto headers = TestHeaderMapImpl{{"Authorization", "Bearer " + kGoodToken}};
-    controller_->Verify(
-        headers, [](const Status& status) { ASSERT_EQ(status, Status::OK); });
-    EXPECT_EQ(headers.get_("sec-istio-auth-userinfo"),
-              "eyJpc3MiOiJodHRwczovL2V4YW1wbGUuY29tIiwic3ViIjoidGVz"
-              "dEBleGFtcGxlLmNvbSIsImF1ZCI6ImV4YW1wbGVfc2VydmljZSIs"
-              "ImV4cCI6MjAwMTAwMTAwMX0");
-  }
 }
 
 }  // namespace Auth

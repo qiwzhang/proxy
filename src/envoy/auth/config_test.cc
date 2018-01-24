@@ -61,13 +61,7 @@ TEST(ConfigTest, GoodTwoIssuers) {
 }
 )";
 
-  auto json_obj = Json::Factory::loadFromString(config_json_str);
-  Config config(*json_obj);
-
-  auto issuers = config.issuers();
-  ASSERT_EQ(issuers.size(), 2);
-
-  IssuerInfo issuer1 = {
+  IssuerInfo expected_issuer1 = {
       "issuer1_uri",      // std::string uri;
       "issuer1_cluster",  // std::string cluster;
       "issuer1_name",     // std::string name;
@@ -79,7 +73,7 @@ TEST(ConfigTest, GoodTwoIssuers) {
           "audience1", "audience2",
       },
   };
-  IssuerInfo issuer2 = {
+  IssuerInfo expected_issuer2 = {
       "issuer2_uri",      // std::string uri;
       "issuer2_cluster",  // std::string cluster;
       "issuer2_name",     // std::string name;
@@ -88,8 +82,13 @@ TEST(ConfigTest, GoodTwoIssuers) {
       600,                //  int64_t pubkey_cache_expiration_sec;
       {},                 // std::set<std::string> audiences;
   };
-  TestIssuerInfo(issuers[0], issuer1);
-  TestIssuerInfo(issuers[1], issuer2);
+
+  auto json_obj = Json::Factory::loadFromString(config_json_str);
+  Config config(*json_obj);
+
+  ASSERT_EQ(config.issuers().size(), 2);
+  TestIssuerInfo(config.issuers()[0], expected_issuer1);
+  TestIssuerInfo(config.issuers()[1], expected_issuer2);
 }
 
 TEST(ConfigTest, WrongPubkeyValue) {

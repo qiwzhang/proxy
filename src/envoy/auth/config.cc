@@ -21,22 +21,24 @@ namespace Envoy {
 namespace Http {
 namespace Auth {
 namespace {
+
 // Default public key cache cache duration: 5 minutes.
 const int64_t kPubKeyCacheExpirationSec = 600;
+
 }  // namespace
 
 std::string IssuerInfo::Validate() const {
   if (!pubkey_value.empty()) {
     auto pubkey = Pubkeys::CreateFrom(pubkey_value, pubkey_type);
     if (pubkey->GetStatus() != Status::OK) {
-      return std::string("Public key invalid value: ") + pubkey_value;
+      return std::string("Invalid public key value: ") + pubkey_value;
     }
   } else {
     if (uri == "") {
-      return "Public key missing uri";
+      return "Missing public key server uri";
     }
     if (cluster == "") {
-      return "Public key missing cluster";
+      return "Missing public key server cluster";
     }
   }
   return "";
@@ -50,7 +52,7 @@ Config::Config(std::vector<IssuerInfo>&& issuers)
 Config::Config(const Json::Object& config) {
   ENVOY_LOG(debug, "Config: {}", __func__);
 
-  // Load the issuers
+  // Load the issuers as JSON array.
   std::vector<Json::ObjectSharedPtr> issuer_jsons;
   try {
     issuer_jsons = config.getObjectArray("issuers");
@@ -66,8 +68,7 @@ Config::Config(const Json::Object& config) {
       if (err.empty()) {
         issuers_.push_back(issuer);
       } else {
-        ENVOY_LOG(error, "Config: invalid issuer config for {}: {}",
-                  issuer.name, err);
+        ENVOY_LOG(error, "Issuer [name = {}]: {}", issuer.name, err);
       }
     }
   }
@@ -77,27 +78,29 @@ bool Config::LoadIssuerInfo(const Json::Object& json, IssuerInfo* issuer) {
   // Check "name"
   issuer->name = json.getString("name", "");
   if (issuer->name == "") {
-    ENVOY_LOG(error, "IssuerInfo: Issuer name missing");
+    ENVOY_LOG(error, "Issuer: Issuer name missing");
     return false;
   }
-  // Check "audience". It will be an empty array if the key "audience" does not
-  // exist
+
+  // Check "audience".
+  // It will be an empty array if the key "audience" does not exist.
   try {
     auto audiences = json.getStringArray("audiences", true);
     issuer->audiences.insert(audiences.begin(), audiences.end());
   } catch (...) {
-    ENVOY_LOG(error, "IssuerInfo [name = {}]: Bad audiences", issuer->name);
+    ENVOY_LOG(error, "Issuer [name = {}]: Bad audiences", issuer->name);
     return false;
   }
+
   // Check "pubkey"
   Json::ObjectSharedPtr json_pubkey;
   try {
     json_pubkey = json.getObject("pubkey");
   } catch (...) {
-    ENVOY_LOG(error, "IssuerInfo [name = {}]: Public key missing",
-              issuer->name);
+    ENVOY_LOG(error, "Issuer [name = {}]: Public key missing", issuer->name);
     return false;
   }
+
   // Check "type"
   std::string pubkey_type_str = json_pubkey->getString("type", "");
   if (pubkey_type_str == "pem") {
@@ -105,11 +108,11 @@ bool Config::LoadIssuerInfo(const Json::Object& json, IssuerInfo* issuer) {
   } else if (pubkey_type_str == "jwks") {
     issuer->pubkey_type = Pubkeys::JWKS;
   } else {
-    ENVOY_LOG(error,
-              "IssuerInfo [name = {}]: Public key type missing or invalid",
+    ENVOY_LOG(error, "Issuer [name = {}]: Public key type missing or invalid",
               issuer->name);
     return false;
   }
+
   // Check "value"
   issuer->pubkey_value = json_pubkey->getString("value", "");
   // If pubkey_value is not empty, not need for "uri" and "cluster"
@@ -121,7 +124,7 @@ bool Config::LoadIssuerInfo(const Json::Object& json, IssuerInfo* issuer) {
   issuer->uri = json_pubkey->getString("uri", "");
   issuer->cluster = json_pubkey->getString("cluster", "");
 
-  // For fetched public key.
+  // Check "cache_expiration_sec".
   issuer->pubkey_cache_expiration_sec = json_pubkey->getInteger(
       "cache_expiration_sec", kPubKeyCacheExpirationSec);
   return true;

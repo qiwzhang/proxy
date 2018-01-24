@@ -18,6 +18,7 @@
 
 #include "common/common/logger.h"
 #include "envoy/json/json_object.h"
+
 #include "jwt.h"
 
 #include <vector>
@@ -28,20 +29,24 @@ namespace Auth {
 
 // Struct to hold an issuer's config.
 struct IssuerInfo {
-  std::string uri;      // URI for public key
-  std::string cluster;  // Envoy cluster name for public key
+  // URI for public key server
+  std::string uri;
+  // Envoy cluster name for public key server
+  std::string cluster;
 
-  std::string name;           // e.g. "https://accounts.example.com"
-  Pubkeys::Type pubkey_type;  // Format of public key.
+  // Issuer name. e.g. "https://accounts.example.com"
+  std::string name;
 
-  // public key value.
+  // Format of public key.
+  Pubkeys::Type pubkey_type;
+  // public key value. Public key can be specified in the Envoy config.
   std::string pubkey_value;
 
   // Time to expire a cached public key (sec).
   // 0 means never expired.
   int64_t pubkey_cache_expiration_sec{};
 
-  // specified audiences from config.
+  // The audiences should be matched from JWT.
   std::set<std::string> audiences;
 
   // Check if an audience is allowed.
@@ -56,14 +61,14 @@ struct IssuerInfo {
   std::string Validate() const;
 };
 
-// A config for Jwt auth filter
+// A config for jwt-auth filter
 class Config : public Logger::Loggable<Logger::Id::http> {
  public:
-  // Load the config from envoy config.
+  // Load the config from envoy config JSON object.
   // It will abort when "issuers" is missing or bad-formatted.
   Config(const Json::Object &config);
 
-  // Constructed by IssuerInfo directly.
+  // Constructed by vector of IssuerInfo directly. Used by Mixer filter.
   Config(std::vector<IssuerInfo> &&issuers);
 
   // Get the list of issuers.
@@ -73,7 +78,7 @@ class Config : public Logger::Loggable<Logger::Id::http> {
   // Load one issuer config from JSON object.
   bool LoadIssuerInfo(const Json::Object &json, IssuerInfo *issuer);
 
-  // Each element corresponds to an issuer
+  // A list of configured issuers.
   std::vector<IssuerInfo> issuers_;
 };
 

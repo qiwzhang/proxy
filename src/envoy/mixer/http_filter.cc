@@ -296,7 +296,7 @@ class CheckData : public HttpCheckData,
   bool GetJWTPayload(
       std::map<std::string, std::string>* payload) const override {
     const HeaderEntry* entry =
-        headers_.get(Auth::Controller::AuthorizedHeaderKey());
+        headers_.get(Auth::Controller::JwtPayloadKey());
     if (!entry) {
       return false;
     }
@@ -305,7 +305,7 @@ class CheckData : public HttpCheckData,
     // Return an empty string if Base64 decode fails.
     if (payload_str.empty()) {
       ENVOY_LOG(error, "Invalid {} header, invalid base64: {}",
-                Auth::Controller::AuthorizedHeaderKey().get(), value);
+                Auth::Controller::JwtPayloadKey().get(), value);
       return false;
     }
     try {
@@ -321,7 +321,7 @@ class CheckData : public HttpCheckData,
           });
     } catch (...) {
       ENVOY_LOG(error, "Invalid {} header, invalid json: {}",
-                Auth::Controller::AuthorizedHeaderKey().get(), payload_str);
+                Auth::Controller::JwtPayloadKey().get(), payload_str);
       return false;
     }
     return true;

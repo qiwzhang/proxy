@@ -16,18 +16,18 @@
 #ifndef AUTH_CONTROLLER_H
 #define AUTH_CONTROLLER_H
 
+#include "envoy/server/filter_config.h"
+#include "envoy/thread_local/thread_local.h"
+
 #include "config.h"
 #include "http_request.h"
 #include "pubkey_cache.h"
-
-#include "envoy/server/filter_config.h"
-#include "envoy/thread_local/thread_local.h"
 
 namespace Envoy {
 namespace Http {
 namespace Auth {
 
-// Auth control object to handle the token verification flow.
+// The controller object to handle the token verification flow.
 class Controller : public ThreadLocal::ThreadLocalObject {
  public:
   // Load the config from envoy config.
@@ -36,14 +36,16 @@ class Controller : public ThreadLocal::ThreadLocalObject {
   // The callback function after JWT verification is done.
   using DoneFunc = std::function<void(const Status& status)>;
 
-  // Verify JWT. on_done function will be called after verification is done.
-  // If there is pending remote call, a CancelFunc will be returned
-  // It can be used to cancel the remote call. When remote call is canceled
-  // on_done function will not be called.
+  // Verify JWT.
+  // on_done function will be called after verification is done.
+  // If there is a pending remote call, a CancelFunc will be returned
+  // so it can be used to cancel the remote call if desired.
+  // If the pending remote call is canceled, on_done function will
+  // not be called.
   CancelFunc Verify(HeaderMap& headers, DoneFunc on_done);
 
-  // The authorized header key.
-  static const LowerCaseString& AuthorizedHeaderKey();
+  // The HTTP header key to carry the verified JWT payload.
+  static const LowerCaseString& JwtPayloadKey();
 
  private:
   // The transport function to make remote http get call.
@@ -53,19 +55,19 @@ class Controller : public ThreadLocal::ThreadLocalObject {
   PubkeyCache pubkey_cache_;
 };
 
-// The factory object to create per-thread auth control.
+// The factory to create per-thread auth controller object.
 class ControllerFactory {
  public:
   ControllerFactory(std::unique_ptr<Config> config,
                     Server::Configuration::FactoryContext& context);
 
-  // Get per-thread auth_control.
+  // Get per-thread auth controller object.
   Controller& controller() { return tls_->getTyped<Controller>(); }
 
  private:
-  // The auth config.
+  // The auth config and own the object.
   std::unique_ptr<Config> config_;
-  // Thread local slot to store per-thread auth_control
+  // Thread local slot to store per-thread auth controller
   ThreadLocal::SlotPtr tls_;
 };
 

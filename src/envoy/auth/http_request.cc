@@ -41,8 +41,7 @@ void ExtractUriHostPath(const std::string& uri, std::string* host,
   *path = "/" + uri.substr(pos1 + 1);
 }
 
-// Callback class for AsyncClient.
-// It is used by Envoy to make remote HTTP call.
+// Callback class for AsyncClient to use Envoy to make remote HTTP call.
 class AsyncClientCallbacks : public AsyncClient::Callbacks,
                              public Logger::Loggable<Logger::Id::http> {
  public:
@@ -62,7 +61,6 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
         std::move(message), *this, Optional<std::chrono::milliseconds>());
   }
 
-  // AsyncClient::Callbacks
   void onSuccess(MessagePtr&& response) {
     std::string status = response->headers().Status()->value().c_str();
     if (status == "200") {
@@ -93,6 +91,7 @@ class AsyncClientCallbacks : public AsyncClient::Callbacks,
   }
 
   void Cancel() {
+    ENVOY_LOG(debug, "AsyncClientCallbacks [uri = {}]: canceled", uri_);
     request_->cancel();
     delete this;
   }
