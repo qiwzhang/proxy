@@ -159,3 +159,17 @@ envoy_cc_test(
         "@envoy//test/test_common:utility_lib",
     ],
 )
+
+envoy_cc_test(
+    name = "controller_test",
+    srcs = [
+        ":controller_test.cc",
+    ],
+    data = [],
+    repository = "@envoy",
+    deps = [
+        ":controller_lib",
+        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//test/test_common:utility_lib",
+    ],
+)

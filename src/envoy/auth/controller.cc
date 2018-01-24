@@ -44,7 +44,8 @@ class AuthRequest : public Logger::Loggable<Logger::Id::http>,
   CancelFunc Verify() {
     const HeaderEntry* entry = headers_.get(kAuthorizationHeaderKey);
     if (!entry) {
-      return DoneWithStatus(Status::OK);
+      // TODO: excludes some health checking path
+      return DoneWithStatus(Status::JWT_MISSED);
     }
 
     // Extract token from header.

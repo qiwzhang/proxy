@@ -30,6 +30,9 @@ namespace Auth {
 enum class Status {
   OK = 0,
 
+  // JWT token is required.
+  JWT_MISSED,
+
   // Authorization header value doesn't have Bearer prefix.
   BEARER_PREFIX_MISMATCH,
 
