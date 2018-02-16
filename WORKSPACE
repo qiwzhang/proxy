@@ -16,7 +16,7 @@
 #
 
 load(
-     "//mixerclient:repositories.bzl",
+     "//:repositories.bzl",
      "googletest_repositories",
      "mixerapi_dependencies",
 )
