@@ -13,30 +13,18 @@
  * limitations under the License.
  */
 
-#pragma once
 
-#include "envoy/event/dispatcher.h"
-#include "envoy/runtime/runtime.h"
-#include "envoy/thread_local/thread_local.h"
-#include "envoy/upstream/cluster_manager.h"
-#include "include/istio/control/http/controller.h"
-#include "src/envoy/http/mixer/config.h"
-#include "src/envoy/utils/grpc_transport.h"
-#include "src/envoy/utils/mixer_control.h"
-#include "src/envoy/utils/stats.h"
+#include "src/envoy/http/mixer/mixer_control.h"
 
 namespace Envoy {
 namespace Http {
 namespace Mixer {
 
-class HttpMixerControl final : public ThreadLocal::ThreadLocalObject {
- public:
-  // The constructor.
-  HttpMixerControl(const HttpMixerConfig& mixer_config,
+  Control::Control(const Config& config,
                    Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
                    Runtime::RandomGenerator& random,
                    Utils::MixerFilterStats& stats)
-      : config_(mixer_config),
+      : config_(config),
         cm_(cm),
         stats_obj_(dispatcher, stats,
                    config_.http_config().transport().stats_update_interval(),
@@ -51,32 +39,14 @@ class HttpMixerControl final : public ThreadLocal::ThreadLocalObject {
     controller_ = ::istio::control::http::Controller::Create(options);
   }
 
-  ::istio::control::http::Controller* controller() { return controller_.get(); }
-
-  Utils::CheckTransport::Func GetCheckTransport(const HeaderMap* headers) {
-    return Utils::CheckTransport::GetFunc(cm_, config_.check_cluster(),
-                                          headers);
-  }
-
- private:
   // Call controller to get statistics.
-  bool GetStats(::istio::mixerclient::Statistics* stat) {
+  bool Control::GetStats(::istio::mixerclient::Statistics* stat) {
     if (!controller_) {
       return false;
     }
     controller_->GetStatistics(stat);
     return true;
   }
-
-  // The mixer config.
-  const HttpMixerConfig& config_;
-  // Envoy cluster manager for making gRPC calls.
-  Upstream::ClusterManager& cm_;
-  // The mixer control
-  std::unique_ptr<::istio::control::http::Controller> controller_;
-  // The stats object.
-  Utils::MixerStatsObject stats_obj_;
-};
 
 }  // namespace Mixer
 }  // namespace Http

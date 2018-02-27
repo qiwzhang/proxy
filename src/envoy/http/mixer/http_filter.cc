@@ -14,32 +14,14 @@
  */
 
 #include "common/common/base64.h"
-#include "common/common/logger.h"
-#include "common/config/utility.h"
-#include "common/http/headers.h"
-#include "common/http/utility.h"
-#include "envoy/registry/registry.h"
-#include "envoy/ssl/connection.h"
-#include "envoy/thread_local/thread_local.h"
-#include "google/protobuf/util/json_util.h"
+
 #include "include/istio/utils/status.h"
-#include "server/config/network/http_connection_manager.h"
-#include "src/envoy/http/jwt_auth/jwt.h"
-#include "src/envoy/http/jwt_auth/jwt_authenticator.h"
 #include "src/envoy/http/mixer/config.h"
 #include "src/envoy/http/mixer/mixer_control.h"
 #include "src/envoy/utils/grpc_transport.h"
 #include "src/envoy/utils/utils.h"
 
-#include <map>
-#include <mutex>
-#include <thread>
-
 using ::google::protobuf::util::Status;
-using HttpCheckData = ::istio::control::http::CheckData;
-using HttpHeaderUpdate = ::istio::control::http::HeaderUpdate;
-using HttpReportData = ::istio::control::http::ReportData;
-using ::istio::mixer::v1::config::client::EndUserAuthenticationPolicySpec;
 using ::istio::mixer::v1::config::client::ServiceConfig;
 
 namespace Envoy {
@@ -54,23 +36,6 @@ const std::string kPerRouteMixer("mixer");
 // Per route opaque data name "mixer_sha" is SHA(JSON(ServiceConfig))
 const std::string kPerRouteMixerSha("mixer_sha");
 
-// The HTTP header to forward Istio attributes.
-const LowerCaseString kIstioAttributeHeader("x-istio-attributes");
-
-// Referer header
-const LowerCaseString kRefererHeaderKey("referer");
-
-// Envoy stats perfix for HTTP filter stats.
-const std::string kHttpStatsPrefix("http_mixer_filter.");
-
-// Set of headers excluded from request.headers attribute.
-const std::set<std::string> RequestHeaderExclusives = {
-    kIstioAttributeHeader.get(),
-};
-
-// Set of headers excluded from response.headers attribute.
-const std::set<std::string> ResponseHeaderExclusives = {};
-
 // Read a string value from a string map.
 bool ReadStringMap(const std::multimap<std::string, std::string>& string_map,
                    const std::string& name, std::string* value) {
@@ -84,280 +49,14 @@ bool ReadStringMap(const std::multimap<std::string, std::string>& string_map,
 
 }  // namespace
 
-class Config : public Logger::Loggable<Logger::Id::http> {
- private:
-  Upstream::ClusterManager& cm_;
-  HttpMixerConfig mixer_config_;
-  ThreadLocal::SlotPtr tls_;
-  Utils::MixerFilterStats stats_;
-
- public:
-  Config(const Json::Object& config,
-         Server::Configuration::FactoryContext& context)
-      : cm_(context.clusterManager()),
-        tls_(context.threadLocal().allocateSlot()),
-        stats_{ALL_MIXER_FILTER_STATS(
-            POOL_COUNTER_PREFIX(context.scope(), kHttpStatsPrefix))} {
-    mixer_config_.Load(config);
-    Runtime::RandomGenerator& random = context.random();
-    tls_->set([this, &random](Event::Dispatcher& dispatcher)
-                  -> ThreadLocal::ThreadLocalObjectSharedPtr {
-                    return ThreadLocal::ThreadLocalObjectSharedPtr(
-                        new HttpMixerControl(mixer_config_, cm_, dispatcher,
-                                             random, stats_));
-                  });
+  Filter::Filter(Control& contrl) :
+    control_(control), state_(NotStarted),
+      initiating_call_(false) {
+	ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
   }
-
-  HttpMixerControl& mixer_control() {
-    return tls_->getTyped<HttpMixerControl>();
-  }
-
-  std::unique_ptr<EndUserAuthenticationPolicySpec> auth_config() {
-    auto spec = std::unique_ptr<EndUserAuthenticationPolicySpec>(
-        new EndUserAuthenticationPolicySpec);
-    for (const auto& it : mixer_config_.http_config().service_configs()) {
-      if (it.second.has_end_user_authn_spec()) {
-        spec->MergeFrom(it.second.end_user_authn_spec());
-      }
-    }
-    if (spec->jwts_size() == 0) {
-      spec.reset();
-    }
-    return spec;
-  }
-};
-
-typedef std::shared_ptr<Config> ConfigPtr;
-
-class HeaderUpdate : public HttpHeaderUpdate,
-                     public Logger::Loggable<Logger::Id::http> {
-  HeaderMap* headers_;
-
- public:
-  HeaderUpdate(HeaderMap* headers) : headers_(headers) {}
-
-  void RemoveIstioAttributes() override {
-    headers_->remove(kIstioAttributeHeader);
-  }
-
-  // base64 encode data, and add it to the HTTP header.
-  void AddIstioAttributes(const std::string& data) override {
-    std::string base64 = Base64::encode(data.c_str(), data.size());
-    ENVOY_LOG(debug, "Mixer forward attributes set: {}", base64);
-    headers_->addReferenceKey(kIstioAttributeHeader, base64);
-  }
-};
-
-class CheckData : public HttpCheckData,
-                  public Logger::Loggable<Logger::Id::http> {
-  const HeaderMap& headers_;
-  const Network::Connection* connection_;
-  Utility::QueryParams query_params_;
-
- public:
-  CheckData(const HeaderMap& headers, const Network::Connection* connection)
-      : headers_(headers), connection_(connection) {
-    if (headers_.Path()) {
-      query_params_ = Utility::parseQueryString(std::string(
-          headers_.Path()->value().c_str(), headers_.Path()->value().size()));
-    }
-  }
-
-  // Find "x-istio-attributes" headers, if found base64 decode
-  // its value and remove it from the headers.
-  bool ExtractIstioAttributes(std::string* data) const override {
-    // Extract attributes from x-istio-attributes header
-    const HeaderEntry* entry = headers_.get(kIstioAttributeHeader);
-    if (entry) {
-      *data = Base64::decode(
-          std::string(entry->value().c_str(), entry->value().size()));
-      return true;
-    }
-    return false;
-  }
-
-  bool GetSourceIpPort(std::string* ip, int* port) const override {
-    if (connection_) {
-      return Utils::GetIpPort(connection_->remoteAddress()->ip(), ip, port);
-    }
-    return false;
-  }
-
-  bool GetSourceUser(std::string* user) const override {
-    return Utils::GetSourceUser(connection_, user);
-  }
-
-  std::map<std::string, std::string> GetRequestHeaders() const override {
-    return Utils::ExtractHeaders(headers_, RequestHeaderExclusives);
-  }
-
-  bool IsMutualTLS() const override { return Utils::IsMutualTLS(connection_); }
-
-  bool FindHeaderByType(HttpCheckData::HeaderType header_type,
-                        std::string* value) const override {
-    switch (header_type) {
-      case HttpCheckData::HEADER_PATH:
-        if (headers_.Path()) {
-          *value = std::string(headers_.Path()->value().c_str(),
-                               headers_.Path()->value().size());
-          return true;
-        }
-        break;
-      case HttpCheckData::HEADER_HOST:
-        if (headers_.Host()) {
-          *value = std::string(headers_.Host()->value().c_str(),
-                               headers_.Host()->value().size());
-          return true;
-        }
-        break;
-      case HttpCheckData::HEADER_SCHEME:
-        if (headers_.Scheme()) {
-          *value = std::string(headers_.Scheme()->value().c_str(),
-                               headers_.Scheme()->value().size());
-          return true;
-        }
-        break;
-      case HttpCheckData::HEADER_USER_AGENT:
-        if (headers_.UserAgent()) {
-          *value = std::string(headers_.UserAgent()->value().c_str(),
-                               headers_.UserAgent()->value().size());
-          return true;
-        }
-        break;
-      case HttpCheckData::HEADER_METHOD:
-        if (headers_.Method()) {
-          *value = std::string(headers_.Method()->value().c_str(),
-                               headers_.Method()->value().size());
-          return true;
-        }
-        break;
-      case HttpCheckData::HEADER_REFERER: {
-        const HeaderEntry* referer = headers_.get(kRefererHeaderKey);
-        if (referer) {
-          *value =
-              std::string(referer->value().c_str(), referer->value().size());
-          return true;
-        }
-      } break;
-    }
-    return false;
-  }
-
-  bool FindHeaderByName(const std::string& name,
-                        std::string* value) const override {
-    const HeaderEntry* entry = headers_.get(LowerCaseString(name));
-    if (entry) {
-      *value = std::string(entry->value().c_str(), entry->value().size());
-      return true;
-    }
-    return false;
-  }
-
-  bool FindQueryParameter(const std::string& name,
-                          std::string* value) const override {
-    const auto& it = query_params_.find(name);
-    if (it != query_params_.end()) {
-      *value = it->second;
-      return true;
-    }
-    return false;
-  }
-
-  bool FindCookie(const std::string& name, std::string* value) const override {
-    std::string cookie = Utility::parseCookieValue(headers_, name);
-    if (cookie != "") {
-      *value = cookie;
-      return true;
-    }
-    return false;
-  }
-
-  bool GetJWTPayload(
-      std::map<std::string, std::string>* payload) const override {
-    const HeaderEntry* entry =
-        headers_.get(JwtAuth::JwtAuthenticator::JwtPayloadKey());
-    if (!entry) {
-      return false;
-    }
-    std::string value(entry->value().c_str(), entry->value().size());
-    std::string payload_str = JwtAuth::Base64UrlDecode(value);
-    // Return an empty string if Base64 decode fails.
-    if (payload_str.empty()) {
-      ENVOY_LOG(error, "Invalid {} header, invalid base64: {}",
-                JwtAuth::JwtAuthenticator::JwtPayloadKey().get(), value);
-      return false;
-    }
-    try {
-      auto json_obj = Json::Factory::loadFromString(payload_str);
-      json_obj->iterate(
-          [payload](const std::string& key, const Json::Object& obj) -> bool {
-            // will throw execption if value type is not string.
-            try {
-              (*payload)[key] = obj.asString();
-            } catch (...) {
-            }
-            return true;
-          });
-    } catch (...) {
-      ENVOY_LOG(error, "Invalid {} header, invalid json: {}",
-                JwtAuth::JwtAuthenticator::JwtPayloadKey().get(), payload_str);
-      return false;
-    }
-    return true;
-  }
-};
-
-class ReportData : public HttpReportData {
-  const HeaderMap* headers_;
-  const RequestInfo::RequestInfo& info_;
-
- public:
-  ReportData(const HeaderMap* headers, const RequestInfo::RequestInfo& info)
-      : headers_(headers), info_(info) {}
-
-  std::map<std::string, std::string> GetResponseHeaders() const override {
-    if (headers_) {
-      return Utils::ExtractHeaders(*headers_, ResponseHeaderExclusives);
-    }
-    return std::map<std::string, std::string>();
-  }
-
-  void GetReportInfo(HttpReportData::ReportInfo* data) const override {
-    data->received_bytes = info_.bytesReceived();
-    data->send_bytes = info_.bytesSent();
-    data->duration =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(info_.duration());
-    // responseCode is for the backend response. If it is not valid, the request
-    // is rejected by Envoy. Set the response code for such requests as 500.
-    data->response_code = 500;
-    if (info_.responseCode().valid()) {
-      data->response_code = info_.responseCode().value();
-    }
-  }
-};
-
-class Instance : public Http::StreamDecoderFilter,
-                 public AccessLog::Instance,
-                 public Logger::Loggable<Logger::Id::http> {
- private:
-  HttpMixerControl& mixer_control_;
-  std::unique_ptr<::istio::control::http::RequestHandler> handler_;
-  istio::mixerclient::CancelFunc cancel_check_;
-
-  enum State { NotStarted, Calling, Complete, Responded };
-  State state_;
-
-  StreamDecoderFilterCallbacks* decoder_callbacks_;
-
-  bool initiating_call_;
-
-  void ReadPerRouteConfig(
+  
+  void Filter::ReadPerRouteConfig(const Router::RouteEntry* entry,
       ::istio::control::http::Controller::PerRouteConfig* config) {
-    auto route = decoder_callbacks_->route();
-    if (route == nullptr) {
-      return;
-    }
-    auto entry = route->routeEntry();
     if (entry == nullptr) {
       return;
     }
@@ -372,7 +71,7 @@ class Instance : public Http::StreamDecoderFilter,
       return;
     }
 
-    if (mixer_control_.controller()->LookupServiceConfig(
+    if (control_.controller()->LookupServiceConfig(
             config->service_config_id)) {
       return;
     }
@@ -398,34 +97,30 @@ class Instance : public Http::StreamDecoderFilter,
           config->destination_service, status.ToString());
       return;
     }
-    mixer_control_.controller()->AddServiceConfig(config->service_config_id,
+    control_.controller()->AddServiceConfig(config->service_config_id,
                                                   config_pb);
     ENVOY_LOG(info, "Service {}, config_id {}, config: {}",
               config->destination_service, config->service_config_id,
               config_pb.DebugString());
   }
 
- public:
-  Instance(ConfigPtr config)
-      : mixer_control_(config->mixer_control()),
-        state_(NotStarted),
-        initiating_call_(false) {
-    ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
-  }
 
-  FilterHeadersStatus decodeHeaders(HeaderMap& headers, bool) override {
+  FilterHeadersStatus Filter::decodeHeaders(HeaderMap& headers, bool)  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
 
     ::istio::control::http::Controller::PerRouteConfig config;
-    ReadPerRouteConfig(&config);
-    handler_ = mixer_control_.controller()->CreateRequestHandler(config);
+    auto route = decoder_callbacks_->route();
+    if (route ) {
+      ReadPerRouteConfig(route->routeEntry(), &config);
+    }
+    handler_ = control_.controller()->CreateRequestHandler(config);
 
     state_ = Calling;
     initiating_call_ = true;
     CheckData check_data(headers, decoder_callbacks_->connection());
     HeaderUpdate header_update(&headers);
     cancel_check_ = handler_->Check(
-        &check_data, &header_update, mixer_control_.GetCheckTransport(&headers),
+        &check_data, &header_update, control_.GetCheckTransport(&headers),
         [this](const Status& status) { completeCheck(status); });
     initiating_call_ = false;
 
@@ -436,8 +131,8 @@ class Instance : public Http::StreamDecoderFilter,
     return FilterHeadersStatus::StopIteration;
   }
 
-  FilterDataStatus decodeData(Buffer::Instance& data,
-                              bool end_stream) override {
+  FilterDataStatus Filter::decodeData(Buffer::Instance& data,
+                              bool end_stream)  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {} ({}, {})", __func__,
               data.length(), end_stream);
     if (state_ == Calling) {
@@ -446,7 +141,7 @@ class Instance : public Http::StreamDecoderFilter,
     return FilterDataStatus::Continue;
   }
 
-  FilterTrailersStatus decodeTrailers(HeaderMap&) override {
+  FilterTrailersStatus Filter::decodeTrailers(HeaderMap&)  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
     if (state_ == Calling) {
       return FilterTrailersStatus::StopIteration;
@@ -454,13 +149,13 @@ class Instance : public Http::StreamDecoderFilter,
     return FilterTrailersStatus::Continue;
   }
 
-  void setDecoderFilterCallbacks(
-      StreamDecoderFilterCallbacks& callbacks) override {
+  void Filter::setDecoderFilterCallbacks(
+      StreamDecoderFilterCallbacks& callbacks)  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
     decoder_callbacks_ = &callbacks;
   }
 
-  void completeCheck(const Status& status) {
+  void Filter::completeCheck(const Status& status) {
     ENVOY_LOG(debug, "Called Mixer::Instance : check complete {}",
               status.ToString());
     // This stream has been reset, abort the callback.
@@ -481,7 +176,7 @@ class Instance : public Http::StreamDecoderFilter,
     }
   }
 
-  void onDestroy() override {
+  void Filter::onDestroy()  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {} state: {}", __func__, state_);
     if (state_ != Calling) {
       cancel_check_ = nullptr;
@@ -494,9 +189,9 @@ class Instance : public Http::StreamDecoderFilter,
     }
   }
 
-  virtual void log(const HeaderMap* request_headers,
+  void Filter::log(const HeaderMap* request_headers,
                    const HeaderMap* response_headers,
-                   const RequestInfo::RequestInfo& request_info) override {
+                   const RequestInfo::RequestInfo& request_info)  {
     ENVOY_LOG(debug, "Called Mixer::Instance : {}", __func__);
     if (!handler_) {
       if (request_headers == nullptr) {
@@ -504,12 +199,9 @@ class Instance : public Http::StreamDecoderFilter,
       }
 
       // Here Request is rejected by other filters, Mixer filter is not called.
-      // TODO: get downstream connection related attributes such as source.ip
-      // But at this stage, not sure if callback_->connection is safe to call.
-      // Similarly, it is better to get per-route attributes, but not sure if
-      // it is safe to call callback_->route().
       ::istio::control::http::Controller::PerRouteConfig config;
-      handler_ = mixer_control_.controller()->CreateRequestHandler(config);
+      ReadPerRouteConfig(request_info.routeEntry(), &config);
+      handler_ = control_.controller()->CreateRequestHandler(config);
 
       CheckData check_data(*request_headers, nullptr);
       handler_->ExtractRequestAttributes(&check_data);
@@ -517,52 +209,7 @@ class Instance : public Http::StreamDecoderFilter,
     ReportData report_data(response_headers, request_info);
     handler_->Report(&report_data);
   }
-};
 
 }  // namespace Mixer
 }  // namespace Http
-
-namespace Server {
-namespace Configuration {
-
-class MixerConfigFactory : public NamedHttpFilterConfigFactory {
- public:
-  HttpFilterFactoryCb createFilterFactory(const Json::Object& config,
-                                          const std::string&,
-                                          FactoryContext& context) override {
-    Http::Mixer::ConfigPtr mixer_config(
-        new Http::Mixer::Config(config, context));
-
-    HttpFilterFactoryCb auth_filter_cb;
-    auto auth_config = mixer_config->auth_config();
-    if (auth_config) {
-      auto& auth_factory =
-          Config::Utility::getAndCheckFactory<NamedHttpFilterConfigFactory>(
-              std::string("jwt-auth"));
-      auto proto_config = auth_factory.createEmptyConfigProto();
-      MessageUtil::jsonConvert(*auth_config, *proto_config);
-      auth_filter_cb =
-          auth_factory.createFilterFactoryFromProto(*proto_config, "", context);
-    }
-    return [mixer_config, auth_filter_cb](
-               Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      if (auth_filter_cb) {
-        auth_filter_cb(callbacks);
-      }
-      std::shared_ptr<Http::Mixer::Instance> instance =
-          std::make_shared<Http::Mixer::Instance>(mixer_config);
-      callbacks.addStreamDecoderFilter(
-          Http::StreamDecoderFilterSharedPtr(instance));
-      callbacks.addAccessLogHandler(AccessLog::InstanceSharedPtr(instance));
-    };
-  }
-  std::string name() override { return "mixer"; }
-};
-
-static Registry::RegisterFactory<MixerConfigFactory,
-                                 NamedHttpFilterConfigFactory>
-    register_;
-
-}  // namespace Configuration
-}  // namespace Server
 }  // namespace Envoy
