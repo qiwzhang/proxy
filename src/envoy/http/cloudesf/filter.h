@@ -16,13 +16,13 @@ namespace CloudESF {
 
 // The Envoy filter for Cloud ESF service control client.
 class Filter : public Http::StreamDecoderFilter,
-  public AccessLog::Instance,
+               public AccessLog::Instance,
                public TokenFetcher::TokenReceiver,
                public Logger::Loggable<Logger::Id::filter> {
  public:
   Filter(FilterConfigSharedPtr config) : config_(config) {}
 
- // Http::StreamFilterBase 
+  // Http::StreamFilterBase
   void onDestroy() override;
 
   // Http::StreamDecoderFilter
@@ -39,10 +39,10 @@ class Filter : public Http::StreamDecoderFilter,
 
   // Called when the request is completed.
   void log(const Http::HeaderMap* request_headers,
-	   const Http::HeaderMap* response_headers,
-	   const Http::HeaderMap* response_trailers,
-	   const StreamInfo::StreamInfo& stream_info) override;
-  
+           const Http::HeaderMap* response_headers,
+           const Http::HeaderMap* response_trailers,
+           const StreamInfo::StreamInfo& stream_info) override;
+
  private:
   // The callback funcion.
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_;

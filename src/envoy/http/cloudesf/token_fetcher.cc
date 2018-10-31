@@ -28,9 +28,10 @@ bool parseJsonToken(const std::string& json_token, std::string* token,
     return false;
   }
 
-  auto &logger = Logger::Registry::getLog(Logger::Id::config);
-  ENVOY_LOG_TO_LOGGER(logger, debug, "struct info: {}", struct_pb.DebugString());
-  
+  auto& logger = Logger::Registry::getLog(Logger::Id::config);
+  ENVOY_LOG_TO_LOGGER(logger, debug, "struct info: {}",
+                      struct_pb.DebugString());
+
   const auto token_it = struct_pb.fields().find("access_token");
   if (token_it == struct_pb.fields().end() ||
       token_it->second.kind_case() != ProtobufWkt::Value::kStringValue) {
@@ -110,10 +111,10 @@ class TokenFetcherImpl : public TokenFetcher,
 
         std::string token;
         int expires_in;
-	ENVOY_LOG(debug, "fetch access_token JSON: {} succeeded", body);
+        ENVOY_LOG(debug, "fetch access_token JSON: {} succeeded", body);
         if (parseJsonToken(body, &token, &expires_in)) {
-          ENVOY_LOG(debug, "parsed access_token: {}, expires_in: {}",
-		    token, expires_in);
+          ENVOY_LOG(debug, "parsed access_token: {}, expires_in: {}", token,
+                    expires_in);
           receiver_->onTokenSuccess(body, expires_in);
         } else {
           ENVOY_LOG(debug, "fetch access_token: invalid format");

@@ -93,13 +93,13 @@ void Filter::setDecoderFilterCallbacks(
   decoder_callbacks_ = &callbacks;
 }
 
-  void Filter::log(const Http::HeaderMap* /*request_headers*/,
-		   const Http::HeaderMap* /*response_headers*/,
-		   const Http::HeaderMap* /*response_trailers*/,
-		   const StreamInfo::StreamInfo& /*stream_info*/) {
-  ENVOY_LOG(debug, "Called CloudESF Filter : {}", __func__);  
+void Filter::log(const Http::HeaderMap* /*request_headers*/,
+                 const Http::HeaderMap* /*response_headers*/,
+                 const Http::HeaderMap* /*response_trailers*/,
+                 const StreamInfo::StreamInfo& /*stream_info*/) {
+  ENVOY_LOG(debug, "Called CloudESF Filter : {}", __func__);
 }
-  
+
 }  // namespace CloudESF
 }  // namespace HttpFilters
 }  // namespace Extensions
