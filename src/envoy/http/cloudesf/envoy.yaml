@@ -14,6 +14,13 @@ static_resources:
     - socket_address:
         address: 127.0.0.1
         port_value: 8080
+  - name: gcp_metadata_server
+    connect_timeout: 5s
+    type: STATIC
+    hosts:
+    - socket_address:
+        address: 169.254.169.254
+        port_value: 80
   - name: mixer_server
     http2_protocol_options: {}
     connect_timeout: 5s
@@ -45,10 +52,14 @@ static_resources:
             config:
               path: /tmp/envoy-access.log
           http_filters:
-          
           - name: envoy.filters.http.cloud_esf
             config:
-              dummy: dummy    
+              service_name: cloud_esf_project
+              token_uri:
+                cluster: gcp_metadata_server
+                uri: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+                timeout:
+                  seconds: 5
           - name: envoy.router
           route_config:
             name: backend

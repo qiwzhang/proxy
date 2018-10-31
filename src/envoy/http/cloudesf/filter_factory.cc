@@ -1,5 +1,5 @@
 
-#include "src/envoy/http/cloudesf/config.pb.h"
+
 #include "src/envoy/http/cloudesf/config.pb.validate.h"
 #include "src/envoy/http/cloudesf/filter.h"
 
@@ -24,12 +24,14 @@ class FilterFactory
 
  private:
   Http::FilterFactoryCb createFilterFactoryFromProtoTyped(
-      const ::envoy::config::filter::http::cloudesf::FilterConfig&,
+      const ::envoy::config::filter::http::cloudesf::FilterConfig& proto_config,
       const std::string&,
       Server::Configuration::FactoryContext& context) override {
-    return [&context](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      callbacks.addStreamDecoderFilter(
-          std::make_shared<Filter>(context.clusterManager()));
+    auto filter_config =
+        std::make_shared<FilterConfig>(proto_config, context.clusterManager());
+    return [filter_config](
+               Http::FilterChainFactoryCallbacks& callbacks) -> void {
+      callbacks.addStreamDecoderFilter(std::make_shared<Filter>(filter_config));
     };
   }
 };
