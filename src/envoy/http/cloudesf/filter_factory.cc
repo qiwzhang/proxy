@@ -31,7 +31,9 @@ class FilterFactory
         std::make_shared<FilterConfig>(proto_config, context.clusterManager());
     return [filter_config](
                Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      callbacks.addStreamDecoderFilter(std::make_shared<Filter>(filter_config));
+      auto filter = std::make_shared<Filter>(filter_config);
+      callbacks.addStreamDecoderFilter(Http::StreamDecoderFilterSharedPtr(filter));
+      callbacks.addAccessLogHandler(AccessLog::InstanceSharedPtr(filter));
     };
   }
 };
