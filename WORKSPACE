@@ -24,6 +24,12 @@ load(
 googletest_repositories()
 mixerapi_dependencies()
 
+load(
+     "//:service_control.bzl",
+     "servicecontrol_client_repositories",
+)
+servicecontrol_client_repositories()
+
 bind(
     name = "boringssl_crypto",
     actual = "//external:ssl",
