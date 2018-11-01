@@ -9,6 +9,7 @@ cc_library(
         "info.h",
         "proto.h",
     ],
+    visibility = ["//visibility:public"],
     deps = [
         "//external:servicecontrol_client",
     ],

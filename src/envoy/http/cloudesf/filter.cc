@@ -14,14 +14,23 @@
  */
 
 #include "src/envoy/http/cloudesf/filter.h"
+#include "src/envoy/http/cloudesf/service_control/proto.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace HttpFilters {
 namespace CloudESF {
 
-Http::FilterHeadersStatus Filter::decodeHeaders(Http::HeaderMap&, bool) {
+void Filter::ExtractRequestInfo(const Http::HeaderMap& headers) {
+  uuid_ = config_->random().uuid();
+  operation_name_ = headers.Path()->value().c_str();
+}
+
+Http::FilterHeadersStatus Filter::decodeHeaders(Http::HeaderMap& headers,
+                                                bool) {
   ENVOY_LOG(debug, "Called CloudESF Filter : {}", __func__);
+
+  ExtractRequestInfo(headers);
 
   state_ = Calling;
   stopped_ = false;
@@ -96,8 +105,24 @@ void Filter::setDecoderFilterCallbacks(
 void Filter::log(const Http::HeaderMap* /*request_headers*/,
                  const Http::HeaderMap* /*response_headers*/,
                  const Http::HeaderMap* /*response_trailers*/,
-                 const StreamInfo::StreamInfo& /*stream_info*/) {
+                 const StreamInfo::StreamInfo& stream_info) {
   ENVOY_LOG(debug, "Called CloudESF Filter : {}", __func__);
+
+  ::google::service_control::ReportRequestInfo info;
+  info.operation_id = uuid_;
+  info.operation_name = operation_name_;
+  info.producer_project_id = config_->config().producer_project_id();
+
+  info.request_start_time = std::chrono::system_clock::now();
+  info.log_message = operation_name_ + " is called";
+
+  info.response_code = stream_info.responseCode().value_or(500);
+  info.request_size = stream_info.bytesReceived();
+  info.response_size = stream_info.bytesSent();
+
+  ::google::api::servicecontrol::v1::ReportRequest report_request;
+  config_->proto_builder().FillReportRequest(info, &report_request);
+  ENVOY_LOG(debug, "Sending report : {}", report_request.DebugString());
 }
 
 }  // namespace CloudESF

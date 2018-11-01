@@ -27,8 +27,8 @@ class FilterFactory
       const ::envoy::config::filter::http::cloudesf::FilterConfig& proto_config,
       const std::string&,
       Server::Configuration::FactoryContext& context) override {
-    auto filter_config =
-        std::make_shared<FilterConfig>(proto_config, context.clusterManager());
+    auto filter_config = std::make_shared<FilterConfig>(
+        proto_config, context.clusterManager(), context.random());
     return
         [filter_config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
           auto filter = std::make_shared<Filter>(filter_config);

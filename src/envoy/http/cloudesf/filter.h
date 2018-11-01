@@ -48,6 +48,8 @@ class Filter : public Http::StreamDecoderFilter,
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
   FilterConfigSharedPtr config_;
 
+  void ExtractRequestInfo(const Http::HeaderMap&);
+
   // The state of the request
   enum State { Init, Calling, Responded, Complete };
   State state_ = Init;
@@ -56,6 +58,8 @@ class Filter : public Http::StreamDecoderFilter,
 
   TokenFetcherPtr token_fetcher_;
   std::string token_;
+  std::string uuid_;
+  std::string operation_name_;
 };
 
 }  // namespace CloudESF

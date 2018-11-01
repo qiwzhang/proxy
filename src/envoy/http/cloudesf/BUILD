@@ -34,6 +34,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         ":config_proto_cc",
+	"//src/envoy/http/cloudesf/service_control:proto",
         "@envoy//source/exe:envoy_common_lib",
     ],
 )

@@ -15,7 +15,10 @@ message HttpUri {
 message FilterConfig {
   // The service name for the Google Service Control
   string service_name = 1 [(validate.rules).string.min_bytes = 1];
+  string service_config_id = 2;
+  string producer_project_id = 3;
 
   // the uri to fetch access token, e.g. from metadata server
-  HttpUri token_uri = 2;
+  HttpUri token_uri = 4;
+
 }
