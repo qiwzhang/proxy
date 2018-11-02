@@ -14,27 +14,23 @@ static_resources:
     - socket_address:
         address: 127.0.0.1
         port_value: 8080
-  - name: gcp_metadata_server
+  - name: gcp_metadata_cluster
     connect_timeout: 5s
     type: STATIC
     hosts:
     - socket_address:
         address: 169.254.169.254
         port_value: 80
-  - name: mixer_server
-    http2_protocol_options: {}
+  - name: service_control_cluster
     connect_timeout: 5s
-    type: STATIC
+    type: LOGICAL_DNS
+    dns_lookup_family: V4_ONLY
+    lb_policy: ROUND_ROBIN
     hosts:
     - socket_address:
-        address: 127.0.0.1
-        port_value: 9091
-    circuit_breakers:
-      thresholds:
-      - max_connections: 10000
-        max_pending_requests: 10000
-        max_requests: 10000
-        max_retries: 3
+        address: servicecontrol.googleapis.com
+        port_value: 443
+    tls_context: { sni: servicecontrol.googleapis.com }
   listeners:
   - name: server
     address:
@@ -56,8 +52,13 @@ static_resources:
             config:
               service_name: cloud_esf_project
               token_uri:
-                cluster: gcp_metadata_server
+                cluster: gcp_metadata_cluster
                 uri: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token
+                timeout:
+                  seconds: 5
+              service_control_uri:
+                cluster: service_control_cluster
+                uri: https://servicecontrol.googleapis.com/v1/services/
                 timeout:
                   seconds: 5
           - name: envoy.router

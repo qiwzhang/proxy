@@ -21,4 +21,6 @@ message FilterConfig {
   // the uri to fetch access token, e.g. from metadata server
   HttpUri token_uri = 4;
 
+  // the uri to call service control
+  HttpUri service_control_uri = 5;
 }

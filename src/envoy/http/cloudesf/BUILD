@@ -24,11 +24,13 @@ envoy_cc_library(
     name = "filter_lib",
     srcs = [
         "filter.cc",
+        "http_call.cc",
         "token_fetcher.cc",
     ],
     hdrs = [
         "filter.h",
         "filter_config.h",
+        "http_call.h",
         "token_fetcher.h",
     ],
     repository = "@envoy",

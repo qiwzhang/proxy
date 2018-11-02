@@ -14,6 +14,7 @@
  */
 
 #include "src/envoy/http/cloudesf/filter.h"
+#include "src/envoy/http/cloudesf/http_call.h"
 #include "src/envoy/http/cloudesf/service_control/proto.h"
 
 namespace Envoy {
@@ -123,6 +124,8 @@ void Filter::log(const Http::HeaderMap* /*request_headers*/,
   ::google::api::servicecontrol::v1::ReportRequest report_request;
   config_->proto_builder().FillReportRequest(info, &report_request);
   ENVOY_LOG(debug, "Sending report : {}", report_request.DebugString());
+
+  
 }
 
 }  // namespace CloudESF
