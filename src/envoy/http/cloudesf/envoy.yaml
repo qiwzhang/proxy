@@ -50,7 +50,7 @@ static_resources:
           http_filters:
           - name: envoy.filters.http.cloud_esf
             config:
-              service_name: cloud_esf_project
+              service_name: bookstore-api.endpoints.qiwzhang-authz.cloud.goog
               token_uri:
                 cluster: gcp_metadata_cluster
                 uri: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token

@@ -115,7 +115,7 @@ class TokenFetcherImpl : public TokenFetcher,
         if (parseJsonToken(body, &token, &expires_in)) {
           ENVOY_LOG(debug, "parsed access_token: {}, expires_in: {}", token,
                     expires_in);
-          receiver_->onTokenSuccess(body, expires_in);
+          receiver_->onTokenSuccess(token, expires_in);
         } else {
           ENVOY_LOG(debug, "fetch access_token: invalid format");
           receiver_->onTokenError(

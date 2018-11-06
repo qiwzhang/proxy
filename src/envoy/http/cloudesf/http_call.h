@@ -10,29 +10,29 @@ namespace Extensions {
 namespace HttpFilters {
 namespace CloudESF {
 
-class HttpFetcher;
-typedef std::unique_ptr<HttpFetcher> HttpFetcherPtr;
-
-class HttpFetcher {
+class HttpCall {
  public:
-  using doneFunc = std::function<void(const ::google::protobuf::util::Status& status,
-				    const std::string& response_body)>;
+  using DoneFunc =
+      std::function<void(const ::google::protobuf::util::Status& status,
+                         const std::string& response_body)>;
+
+  virtual ~HttpCall() {}
   /*
    * Cancel any in-flight request.
    */
   virtual void cancel() PURE;
 
-  virtual void fetch(const std::string& suffix_url, const std::string& token,
-		     const std::string& body, doneFunc on_done) PURE;
+  virtual void call(const std::string& suffix_url, const std::string& token,
+                    const Protobuf::Message& body, DoneFunc on_done) PURE;
 
   /*
-   * Factory method for creating a HttpFetcher.
+   * Factory method for creating a HttpCall.
    * @param cm the cluster manager to use during Token retrieval
-   * @return a HttpFetcher instance
+   * @return a HttpCall instance
    */
-  static HttpFetcherPtr create(Upstream::ClusterManager& cm,
-      const ::envoy::config::filter::http::cloudesf::HttpUri& uri,
-			       
+  static HttpCall* create(
+      Upstream::ClusterManager& cm,
+      const ::envoy::config::filter::http::cloudesf::HttpUri& uri);
 };
 
 }  // namespace CloudESF

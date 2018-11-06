@@ -25,6 +25,7 @@ namespace CloudESF {
 void Filter::ExtractRequestInfo(const Http::HeaderMap& headers) {
   uuid_ = config_->random().uuid();
   operation_name_ = headers.Path()->value().c_str();
+  //operation_name_ = "bookstore";
 }
 
 Http::FilterHeadersStatus Filter::decodeHeaders(Http::HeaderMap& headers,
@@ -125,7 +126,12 @@ void Filter::log(const Http::HeaderMap* /*request_headers*/,
   config_->proto_builder().FillReportRequest(info, &report_request);
   ENVOY_LOG(debug, "Sending report : {}", report_request.DebugString());
 
-  
+  std::string suffix_uri = config_->config().service_name() + ":report";
+  auto dummy_on_done = [](const ::google::protobuf::util::Status&,
+                          const std::string&) {};
+  HttpCall* http_call =
+      HttpCall::create(config_->cm(), config_->config().service_control_uri());
+  http_call->call(suffix_uri, token_, report_request, dummy_on_done);
 }
 
 }  // namespace CloudESF
