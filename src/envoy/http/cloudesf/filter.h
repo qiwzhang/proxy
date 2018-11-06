@@ -5,6 +5,7 @@
 #include "envoy/http/filter.h"
 #include "envoy/upstream/cluster_manager.h"
 #include "src/envoy/http/cloudesf/filter_config.h"
+#include "src/envoy/http/cloudesf/http_call.h"
 #include "src/envoy/http/cloudesf/token_fetcher.h"
 
 #include <string>
@@ -44,6 +45,9 @@ class Filter : public Http::StreamDecoderFilter,
            const StreamInfo::StreamInfo& stream_info) override;
 
  private:
+  void onCheckResponse(const ::google::protobuf::util::Status& status,
+                       const std::string& response_json);
+
   // The callback funcion.
   Http::StreamDecoderFilterCallbacks* decoder_callbacks_;
   FilterConfigSharedPtr config_;
@@ -60,6 +64,12 @@ class Filter : public Http::StreamDecoderFilter,
   std::string token_;
   std::string uuid_;
   std::string operation_name_;
+  std::string api_key_;
+  std::string http_method_;
+
+  ::google::service_control::CheckResponseInfo check_response_info_;
+  ::google::protobuf::util::Status check_status_;
+  HttpCall* check_call_{};
 };
 
 }  // namespace CloudESF

@@ -93,31 +93,33 @@ class HttpCallImpl : public HttpCall,
     ENVOY_LOG(trace, "{}", __func__);
     const uint64_t status_code =
         Http::Utility::getResponseStatus(response->headers());
+    std::string body;
+    if (response->body()) {
+      const auto len = response->body()->length();
+      body = std::string(static_cast<char*>(response->body()->linearize(len)),
+                         len);
+    }
     if (status_code == enumToInt(Http::Code::OK)) {
-      if (response->body()) {
-        const auto len = response->body()->length();
-        const auto body = std::string(
-            static_cast<char*>(response->body()->linearize(len)), len);
+      if (!body.empty()) {
         ENVOY_LOG(debug, "http call [uri = {}]: success with body {}", uri_,
                   body);
         on_done_(Status::OK, body);
       } else {
         ENVOY_LOG(debug, "http call [uri = {}]: empty response", uri_);
         on_done_(Status(Code::INTERNAL, "Failed to call service control"),
-                 std::string());
+                 body);
       }
     } else {
-      ENVOY_LOG(debug, "fetch access_token: response status code {}",
-                status_code);
-      on_done_(Status(Code::INTERNAL, "Failed to call service control"),
-               std::string());
+      ENVOY_LOG(debug, "http call response status code: {}, body: {}",
+                status_code, body);
+      on_done_(Status(Code::INTERNAL, "Failed to call service control"), body);
     }
     reset();
     delete this;
   }
 
   void onFailure(Http::AsyncClient::FailureReason reason) {
-    ENVOY_LOG(debug, "fetch access_token: network error {}", enumToInt(reason));
+    ENVOY_LOG(debug, "http call network error {}", enumToInt(reason));
     on_done_(Status(Code::INTERNAL, "Failed to call service control"),
              std::string());
     reset();
